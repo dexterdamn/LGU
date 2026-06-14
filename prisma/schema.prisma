@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  DATA_ENCODER
+}
+
+enum UserStatus {
+  PENDING_EMAIL
+  PENDING_TOTP
+  PENDING_PASSWORD
+  PENDING_APPROVAL
+  ACTIVE
+  REJECTED
+  DISABLED
+}
+
+enum Sex {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum AuditLevel {
+  INFO
+  WARNING
+  DANGER
+}
+
+model User {
+  id              String     @id @default(cuid())
+  email           String     @unique
+  passwordHash    String?
+  name            String
+  nickname        String     @default("")
+  officeAgency    String
+  sex             Sex
+  birthday        DateTime
+  address         String
+  role            UserRole   @default(DATA_ENCODER)
+  status          UserStatus @default(PENDING_EMAIL)
+  totpSecret      String?
+  totpVerified    Boolean    @default(false)
+  approvedAt      DateTime?
+  approvedById    String?
+  approvedBy      User?      @relation("UserApprovals", fields: [approvedById], references: [id])
+  approvedUsers   User[]     @relation("UserApprovals")
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  dataTables      DataTable[] @relation("TableAuthor")
+  deletedTables   DataTable[] @relation("TableDeleter")
+  templates       DataTableTemplate[] @relation("TemplateCreator")
+  emailOtps       EmailOtp[]
+  auditLogs       AuditLog[]
+  passwordResets  PasswordResetToken[]
+}
+
+model EmailOtp {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model PasswordResetAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+}
+
+model DataTableTemplate {
+  id               String    @id @default(cuid())
+  title            String
+  description      String?
+  sector           String
+  subcategory      String
+  tags             String[]
+  notes            String?
+  columns          Json      @default("[]")
+  rowHeaders       Json?
+  colHeaders       Json?
+  showStatistics   Boolean   @default(false)
+  statisticsTypes  String[]  @default([])
+  createdById      String
+  createdBy        User      @relation("TemplateCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  isPublic         Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([sector])
+  @@index([subcategory])
+  @@index([isPublic])
+}
+
+model DataTable {
+  id               String    @id @default(cuid())
+  title            String
+  description      String?
+  sector           String
+  subcategory      String
+  tags             String[]
+  source           String?
+  notes            String?
+  authorId         String
+  author           User      @relation("TableAuthor", fields: [authorId], references: [id])
+  previousAuthorName String?
+  columns          Json      @default("[]")
+  rowHeaders       Json?
+  colHeaders       Json?
+  showStatistics   Boolean   @default(false)
+  statisticsTypes  String[]  @default([])
+  deletedAt        DateTime?
+  deletedById      String?
+  deletedBy        User?     @relation("TableDeleter", fields: [deletedById], references: [id])
+  deleteReason     String?
+  rows             DataRow[]
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([deletedAt])
+  @@index([sector])
+  @@index([subcategory])
+}
+
+model DataRow {
+  id          String    @id @default(cuid())
+  tableId     String
+  table       DataTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  barangay    String?
+  sex         Sex?
+  values      Json
+  rowOrder    Int       @default(0)
+  isStatistic Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model AuditLog {
+  id        String     @id @default(cuid())
+  action    String
+  level     AuditLevel @default(INFO)
+  userId    String?
+  user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userEmail String?
+  userName  String?
+  ipAddress String?
+  reason    String?
+  metadata  Json?
+  createdAt DateTime   @default(now())
+
+  @@index([createdAt])
+  @@index([level])
+  @@index([action])
+}

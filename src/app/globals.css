@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-page: 249 250 251;
+    --bg-card: 255 255 255;
+    --text-primary: 17 24 39;
+    --text-muted: 107 114 128;
+    --border: 229 231 235;
+  }
+
+  .dark {
+    --bg-page: 17 24 39;
+    --bg-card: 31 41 55;
+    --text-primary: 243 244 246;
+    --text-muted: 156 163 175;
+    --border: 55 65 81;
+  }
+
+  body {
+    @apply antialiased;
+    background-color: rgb(var(--bg-page));
+    color: rgb(var(--text-primary));
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none dark:focus:ring-offset-gray-900;
+  }
+  .btn-primary {
+    @apply btn bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+  }
+  .btn-secondary {
+    @apply btn bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 focus:ring-primary-500 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+  }
+  .input {
+    @apply block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm placeholder:text-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100 dark:placeholder:text-gray-500;
+  }
+  .label {
+    @apply block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1;
+  }
+  .card {
+    @apply bg-white rounded-xl shadow-sm border border-gray-200 dark:bg-gray-800 dark:border-gray-700;
+  }
+  .page-shell {
+    @apply min-h-screen bg-gray-50 dark:bg-gray-900;
+  }
+  .text-muted {
+    @apply text-gray-500 dark:text-gray-400;
+  }
+  .header-cell {
+    @apply bg-primary-100 dark:bg-primary-900/40 text-primary-900 dark:text-primary-100 font-semibold text-center text-sm border border-gray-300 dark:border-gray-600 px-2 py-2;
+  }
+  .header-cell-alt {
+    @apply bg-primary-200 dark:bg-primary-800/50 text-primary-900 dark:text-primary-100 font-semibold text-center text-sm border border-gray-300 dark:border-gray-600 px-2 py-2;
+  }
+  .data-cell {
+    @apply bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-1 py-1;
+  }
+  .data-cell-alt {
+    @apply bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 px-1 py-1;
+  }
+  .audit-info {
+    @apply border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-400;
+  }
+  .audit-warning {
+    @apply border-l-4 border-orange-500 bg-orange-50 dark:bg-orange-950/30 dark:border-orange-400;
+  }
+  .audit-danger {
+    @apply border-l-4 border-red-500 bg-red-50 dark:bg-red-950/30 dark:border-red-400;
+  }
+}
