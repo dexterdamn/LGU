@@ -28,6 +28,7 @@ const createSchema = z.object({
   statisticsTypes: z.array(z.enum(["total", "average", "min", "max", "count"])).optional(),
   tags: z.array(z.string()).optional(),
   templateId: z.string().optional(),
+  values: z.record(z.any()).optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -83,6 +84,14 @@ export async function POST(req: NextRequest) {
     const tags = [...new Set([...(data.tags || []), ...autoTags.tags])];
 
     const gridValues = buildEmptyGrid(data.rowHeaders, data.colHeaders);
+
+    // If client provided values (cellKey -> value), merge them into gridValues
+    if ((data as any).values && typeof (data as any).values === "object") {
+      const provided = (data as any).values as Record<string, any>;
+      for (const k of Object.keys(provided)) {
+        gridValues[k] = provided[k];
+      }
+    }
 
     const table = await prisma.$transaction(async (tx) => {
       const created = await tx.dataTable.create({

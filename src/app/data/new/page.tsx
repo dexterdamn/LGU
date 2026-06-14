@@ -12,7 +12,7 @@ import {
   DEFAULT_SUBCATEGORIES,
   autoDetectTags,
 } from "@/lib/categorization";
-import { HeaderNode, createHeaderNode, flattenHeaderLeaves } from "@/lib/table-headers";
+import { HeaderNode, createHeaderNode, flattenHeaderLeaves, buildHeaderTreeFromPaths } from "@/lib/table-headers";
 import { Loader2, Upload, Copy } from "lucide-react";
 import type { StatType } from "@/lib/table-headers";
 
@@ -57,6 +57,7 @@ export default function NewDataTablePage() {
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [csvLoading, setCsvLoading] = useState(false);
+  const [importValues, setImportValues] = useState<Record<string, string | number | null>>({});
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -118,12 +119,53 @@ export default function NewDataTablePage() {
 
       const { rowHeaders: rowHdrs, colHeaders: colHdrs, values } = result.data;
 
-      // Convert to HeaderNode format
-      const newRowHeaders = rowHdrs.map((h: string) => createHeaderNode(h || ""));
-      const newColHeaders = colHdrs.map((h: string) => createHeaderNode(h || ""));
+      const fallbackRowHdrs =
+        !rowHdrs?.some((header: string) => header?.trim()) && values
+          ? Object.keys(values)
+          : rowHdrs;
+
+      const firstRowKey = values ? Object.keys(values)[0] : undefined;
+      const fallbackColHdrs =
+        !colHdrs?.some((header: string) => header?.trim()) && firstRowKey
+          ? Object.keys(values[firstRowKey])
+          : colHdrs;
+
+      const newRowHeaders = buildHeaderTreeFromPaths(fallbackRowHdrs || []);
+      const newColHeaders = buildHeaderTreeFromPaths(fallbackColHdrs || []);
 
       setRowHeaders(newRowHeaders.length ? newRowHeaders : [createHeaderNode("")]);
       setColHeaders(newColHeaders.length ? newColHeaders : [createHeaderNode("")]);
+
+      // Map parsed values (label-based) to client cell keys (rowId__colId)
+      if (values && Object.keys(values).length) {
+        const rowLeaves = flattenHeaderLeaves(newRowHeaders);
+        const colLeaves = flattenHeaderLeaves(newColHeaders);
+
+        const rowMap: Record<string, string> = {};
+        for (const r of rowLeaves) {
+          rowMap[r.path.join(" > ")] = r.id;
+        }
+
+        const colMap: Record<string, string> = {};
+        for (const c of colLeaves) {
+          colMap[c.path.join(" > ")] = c.id;
+        }
+
+        const mapped: Record<string, string | number | null> = {};
+        for (const rKey of Object.keys(values)) {
+          const rowId = rowMap[rKey];
+          if (!rowId) continue;
+          for (const cKey of Object.keys(values[rKey])) {
+            const colId = colMap[cKey];
+            if (!colId) continue;
+            mapped[`${rowId}__${colId}`] = values[rKey][cKey];
+          }
+        }
+
+        setImportValues(mapped);
+      } else {
+        setImportValues({});
+      }
 
       setError(""); // Clear any previous errors
     } catch (err) {
@@ -208,6 +250,7 @@ export default function NewDataTablePage() {
           colHeaders,
           showStatistics,
           statisticsTypes: showStatistics ? statisticsTypes : [],
+          values: importValues,
         }),
       });
       const data = await res.json();

@@ -26,11 +26,22 @@ export async function POST(req: NextRequest) {
     const csvContent = await file.text();
     const parsed = parseCSV(csvContent);
 
+    const rowHeaders = parsed.rowHeaders.length
+      ? parsed.rowHeaders
+      : Object.keys(parsed.values);
+
+    const firstRowKey = Object.keys(parsed.values)[0];
+    const colHeaders = parsed.colHeaders.length
+      ? parsed.colHeaders
+      : firstRowKey
+      ? Object.keys(parsed.values[firstRowKey])
+      : [];
+
     return NextResponse.json({
       success: true,
       data: {
-        rowHeaders: parsed.rowHeaders,
-        colHeaders: parsed.colHeaders,
+        rowHeaders,
+        colHeaders,
         values: parsed.values,
       },
     });

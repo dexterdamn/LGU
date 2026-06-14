@@ -1,7 +1,6 @@
 /**
- * Parse CSV data and automatically detect headers vs data rows
- * Logic: Any rows before the first numeric value are row headers,
- * any columns before first numeric value are column headers
+ * Parse CSV data and automatically detect headers vs data rows.
+ * Supports quoted values and multi-row column headers.
  */
 export interface ParsedCSVData {
   rowHeaders: string[];
@@ -9,80 +8,156 @@ export interface ParsedCSVData {
   values: Record<string, Record<string, any>>;
 }
 
+function normalizeCell(cell: string): string {
+  let normalized = cell.trim();
+
+  if (normalized.startsWith('"') && normalized.endsWith('"') && normalized.length >= 2) {
+    normalized = normalized.slice(1, -1).replace(/""/g, '"').trim();
+  }
+
+  return normalized;
+}
+
+function parseCsvLine(line: string): string[] {
+  const cells: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+        continue;
+      }
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (char === "," && !inQuotes) {
+      cells.push(normalizeCell(current));
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  cells.push(normalizeCell(current));
+  return cells;
+}
+
 function isNumericValue(value: any): boolean {
-  if (value === null || value === undefined || value === "") return false;
-  const num = Number(value);
-  return !isNaN(num) && value !== "";
+  if (value === null || value === undefined) return false;
+  const normalized = String(value).trim().replace(/,/g, "");
+  if (normalized === "" || normalized === "+" || normalized === "-") return false;
+  const num = Number(normalized);
+  return !Number.isNaN(num);
+}
+
+function parseValue(value: string): string | number {
+  const normalized = normalizeCell(value);
+  return isNumericValue(normalized)
+    ? Number(normalized.replace(/,/g, ""))
+    : normalized;
 }
 
 export function parseCSV(csvContent: string): ParsedCSVData {
-  const lines = csvContent.split("\n").filter((line) => line.trim());
+  const lines = csvContent
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\uFEFF/g, "").trim())
+    .filter((line) => line.length > 0);
+
   if (lines.length === 0) {
     return { rowHeaders: [], colHeaders: [], values: {} };
   }
 
-  // Parse rows
-  const rows: string[][] = lines.map((line) =>
-    line.split(",").map((cell) => cell.trim())
-  );
-
+  const rows = lines.map(parseCsvLine).filter((row) => row.some((cell) => cell !== ""));
   if (rows.length === 0) {
     return { rowHeaders: [], colHeaders: [], values: {} };
   }
 
-  // Find first row with numeric data
-  let firstDataRowIdx = -1;
-  for (let i = 0; i < rows.length; i++) {
-    const hasNumeric = rows[i].some((cell) => isNumericValue(cell));
-    if (hasNumeric) {
-      firstDataRowIdx = i;
-      break;
-    }
-  }
+  let firstDataRowIdx = rows.findIndex((row) => {
+    const hasRowLabel = row[0]?.trim() !== "";
+    const hasNumeric = row.some((cell) => isNumericValue(cell));
+    return hasRowLabel && hasNumeric;
+  });
 
-  // If no numeric data found, treat all as headers
   if (firstDataRowIdx === -1) {
     firstDataRowIdx = rows.length;
   }
 
-  // Row headers are all rows before first data row
-  const rowHeaders = rows.slice(0, firstDataRowIdx).map((row) => row[0]);
+  const dataRows = rows.slice(firstDataRowIdx);
+  let firstDataColIdx = dataRows.length
+    ? dataRows[0].findIndex((cell) => isNumericValue(cell))
+    : rows[0].findIndex((cell) => isNumericValue(cell));
 
-  // Find first column with numeric data
-  let firstDataColIdx = -1;
-  for (let col = 0; col < rows[0].length; col++) {
-    const hasNumeric = rows.some(
-      (row) => col < row.length && isNumericValue(row[col])
-    );
-    if (hasNumeric) {
-      firstDataColIdx = col;
-      break;
+  if (firstDataColIdx === -1 && rows.length > 1) {
+    firstDataColIdx = rows[1].findIndex((cell) => isNumericValue(cell));
+  }
+
+  const finalDataColIdx = firstDataColIdx === -1 ? rows[0].length : firstDataColIdx;
+
+  const headerRows = rows.slice(0, firstDataRowIdx);
+  const normalizedHeaderRows = headerRows.map((row) => {
+    const normalized: string[] = [];
+    let last = "";
+    for (let col = 0; col < row.length; col++) {
+      const cell = row[col].trim();
+      if (cell === "") {
+        normalized[col] = last;
+      } else {
+        normalized[col] = cell;
+        last = cell;
+      }
     }
+    return normalized;
+  });
+
+  const rowHeaderTopLabels = normalizedHeaderRows[0]
+    .slice(0, finalDataColIdx)
+    .map((cell) => cell.trim())
+    .filter(Boolean);
+
+  const rowHeaderRows = headerRows.slice(1);
+  const rowDataRows = [...rowHeaderRows, ...dataRows];
+
+  const rowHeaders = rowDataRows
+    .map((row) => row.slice(0, finalDataColIdx).map((cell) => normalizeCell(cell)).filter(Boolean))
+    .filter((cells) => cells.length > 0)
+    .map((cells) => {
+      const path = [...rowHeaderTopLabels, ...cells].filter(Boolean);
+      return path.join(" > ");
+    });
+
+  const maxCols = Math.max(...rows.map((row) => row.length));
+  const colHeaders: string[] = [];
+
+  for (let col = finalDataColIdx; col < maxCols; col++) {
+    const headerParts = normalizedHeaderRows
+      .map((row) => row[col] ?? "")
+      .filter((cell) => cell.trim() !== "");
+
+    colHeaders.push(headerParts.join(" > ") || `col_${col}`);
   }
 
-  // If no numeric data found, treat all as headers
-  if (firstDataColIdx === -1) {
-    firstDataColIdx = rows[0].length;
-  }
-
-  // Column headers are first columns before first data column
-  const colHeaders = rows[0].slice(0, firstDataColIdx);
-
-  // Parse data values
   const values: Record<string, Record<string, any>> = {};
 
-  for (let rowIdx = firstDataRowIdx; rowIdx < rows.length; rowIdx++) {
-    const row = rows[rowIdx];
-    const rowKey = row[0] || `row_${rowIdx}`;
-
+  for (let rowIndex = 0; rowIndex < rowDataRows.length; rowIndex++) {
+    const row = rowDataRows[rowIndex];
+    const rowKey = rowHeaders[rowIndex] || `row_${rowIndex}`;
     values[rowKey] = {};
 
-    for (let colIdx = firstDataColIdx; colIdx < row.length; colIdx++) {
-      const colKey = colHeaders[colIdx - firstDataColIdx] || `col_${colIdx}`;
-      const cellValue = row[colIdx];
-      values[rowKey][colKey] = isNumericValue(cellValue)
-        ? Number(cellValue)
-        : cellValue;
+    for (let colIdx = finalDataColIdx; colIdx < maxCols; colIdx++) {
+      const colKey = colHeaders[colIdx - finalDataColIdx] || `col_${colIdx}`;
+      if (rowIndex < rowHeaderRows.length) {
+        // This row is part of the header (no data values)
+        values[rowKey][colKey] = null;
+      } else {
+        values[rowKey][colKey] = parseValue(row[colIdx] ?? "");
+      }
     }
   }
 

@@ -83,13 +83,14 @@ export default function DashboardPage() {
         ]);
       })
       .then((results) => {
-        if (results) {
-          return Promise.all([
-            results[0]?.json(),
-            results[1]?.json(),
-          ]);
+        if (!results) {
+          return Promise.resolve([null, null] as [null, null]);
         }
-        return [null, null];
+
+        return Promise.all([
+          results[0]?.json(),
+          results[1]?.json(),
+        ]);
       })
       .then(([statsData, adminStatsData]) => {
         if (statsData) setStats(statsData.stats);
@@ -270,7 +271,7 @@ export default function DashboardPage() {
               </div>
             </div>
           ))}
-        </div>
+
 
         <div className="card p-6 mb-8">
           <h2 className="font-semibold text-lg mb-4">By Category</h2>

@@ -31,6 +31,38 @@ export function flattenHeaderLeaves(headers: HeaderNode[]): HeaderLeaf[] {
   return leaves;
 }
 
+export function buildHeaderTreeFromPaths(paths: string[]): HeaderNode[] {
+  const roots: HeaderNode[] = [];
+
+  for (const path of paths) {
+    const parts = path
+      .split(">")
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    if (!parts.length) continue;
+
+    let currentNodes = roots;
+    let currentNode: HeaderNode | undefined;
+
+    for (const part of parts) {
+      currentNode = currentNodes.find((node) => node.label === part);
+      if (!currentNode) {
+        currentNode = createHeaderNode(part);
+        currentNodes.push(currentNode);
+      }
+
+      if (!currentNode.children) {
+        currentNode.children = [];
+      }
+
+      currentNodes = currentNode.children;
+    }
+  }
+
+  return roots;
+}
+
 export function getHeaderDepth(headers: HeaderNode[]): number {
   if (!headers.length) return 0;
   return Math.max(

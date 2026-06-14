@@ -8,7 +8,7 @@ import { NestedDataGrid } from "@/components/NestedDataGrid";
 import { ConfirmReasonModal } from "@/components/ConfirmReasonModal";
 import { formatSectorLabel } from "@/lib/categorization";
 import { getAuthorDisplayName } from "@/lib/display-name";
-import { HeaderNode, StatType } from "@/lib/table-headers";
+import { HeaderNode, StatType, flattenHeaderLeaves, cellKey } from "@/lib/table-headers";
 import { Loader2, Save, ArrowLeft } from "lucide-react";
 
 interface DataTable {
@@ -106,6 +106,53 @@ export default function DataTablePage() {
     }
   };
 
+  const downloadCSV = () => {
+    const rowLeaves = flattenHeaderLeaves(rowHeaders);
+    const colLeaves = flattenHeaderLeaves(colHeaders);
+    const escapeCell = (v: any) => {
+      if (v === null || v === undefined) return "";
+      const s = String(v);
+      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+
+    const header = ["Row", ...colLeaves.map((c) => c.path.join(" > "))];
+    const lines = [header.map(escapeCell).join(",")];
+
+    for (const r of rowLeaves) {
+      const row = [r.path.join(" > "), ...colLeaves.map((c) => values[cellKey(r.id, c.id)] ?? "")];
+      lines.push(row.map(escapeCell).join(","));
+    }
+
+    const csv = lines.join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(table?.title || "table").replace(/\s+/g, "_")}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadPDF = () => {
+    const rowLeaves = flattenHeaderLeaves(rowHeaders);
+    const colLeaves = flattenHeaderLeaves(colHeaders);
+    const tableHtml = [];
+    tableHtml.push(`<table style="border-collapse:collapse;width:100%;">`);
+    tableHtml.push(`<thead><tr><th style="border:1px solid #ddd;padding:6px">Row</th>` + colLeaves.map(c => `<th style="border:1px solid #ddd;padding:6px">${c.path.join(' > ')}</th>`).join('') + `</tr></thead>`);
+    tableHtml.push(`<tbody>`);
+    for (const r of rowLeaves) {
+      tableHtml.push(`<tr><th style="border:1px solid #ddd;padding:6px;text-align:left">${r.path.join(' > ')}</th>` + colLeaves.map(c => `<td style="border:1px solid #ddd;padding:6px">${values[cellKey(r.id,c.id)] ?? ''}</td>`).join('') + `</tr>`);
+    }
+    tableHtml.push(`</tbody></table>`);
+
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(`<!doctype html><html><head><title>${table?.title || 'Table'}</title><meta charset="utf-8"></head><body><h1>${table?.title || ''}</h1>${tableHtml.join('')}<script>setTimeout(()=>{window.print();},500);</script></body></html>`);
+    win.document.close();
+  };
+
   if (loading) {
     return (
       <div className="page-shell flex items-center justify-center">
@@ -149,11 +196,15 @@ export default function DataTablePage() {
               {table.source && <span className="text-xs text-muted">Source: {table.source}</span>}
             </div>
           </div>
-          {canEdit && (
-            <button onClick={handleSaveClick} disabled={saving} className="btn-primary text-sm">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" />Save</>}
-            </button>
-          )}
+          <div className="flex gap-2">
+            <button onClick={downloadCSV} className="btn-secondary text-sm">Download CSV</button>
+            <button onClick={downloadPDF} className="btn-secondary text-sm">Download PDF</button>
+            {canEdit && (
+              <button onClick={handleSaveClick} disabled={saving} className="btn-primary text-sm">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" />Save</>}
+              </button>
+            )}
+          </div>
         </div>
 
         {error && <div className="bg-red-50 dark:bg-red-950/30 text-red-700 px-4 py-3 rounded-lg text-sm mb-4">{error}</div>}
