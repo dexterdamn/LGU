@@ -51,7 +51,6 @@ export default function NewDataTablePage() {
   const [statisticsTypes, setStatisticsTypes] = useState<StatType[]>(["total"]);
   const [rowHeaders, setRowHeaders] = useState<HeaderNode[]>([]);
   const [colHeaders, setColHeaders] = useState<HeaderNode[]>([]);
-  const [groupBy, setGroupBy] = useState<string>("");
   const [categorySuggestions, setCategorySuggestions] = useState<string[]>(DEFAULT_CATEGORIES);
   const [subcategorySuggestions, setSubcategorySuggestions] = useState<string[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -118,9 +117,7 @@ export default function NewDataTablePage() {
       const result = await res.json();
       if (!res.ok) throw new Error(result.error);
 
-      const { rowHeaders: rowHdrs, colHeaders: colHdrs, values, groupBy: gbName } = result.data;
-
-      setGroupBy(gbName || "");
+      const { rowHeaders: rowHdrs, colHeaders: colHdrs, values } = result.data;
 
       const fallbackRowHdrs =
         !rowHdrs?.some((header: string) => header?.trim()) && values
