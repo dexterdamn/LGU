@@ -176,9 +176,9 @@ export function NestedDataGrid({
                   style={{ minWidth: 120 }}
                 >
                   {groupBy && (
-                    <div className="flex items-center gap-1 text-sm font-semibold">
+                    <div className="flex flex-col items-center justify-center gap-1">
+                      <div className="text-sm font-semibold">{groupBy}</div>
                       <ChevronDown className="w-4 h-4" />
-                      {groupBy}
                     </div>
                   )}
                 </th>
