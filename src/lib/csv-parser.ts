@@ -147,7 +147,23 @@ export function parseCSV(csvContent: string): ParsedCSVData {
       }
       // Otherwise return the full path joined
       return path.join(" > ");
-    });pathArray = rowHeadersRaw[rowIndex];
+    });
+
+  const maxCols = Math.max(...rows.map((row) => row.length));
+  const colHeaders: string[] = [];
+
+  for (let col = finalDataColIdx; col < maxCols; col++) {
+    const headerParts = normalizedHeaderRows
+      .map((row) => row[col] ?? "")
+      .filter((cell) => cell.trim() !== "");
+
+    colHeaders.push(headerParts.join(" > ") || `col_${col}`);
+  }
+
+  const values: Record<string, Record<string, any>> = {};
+
+  for (let rowIndex = 0; rowIndex < rowDataRows.length; rowIndex++) {
+    const pathArray = rowHeadersRaw[rowIndex];
     
     // Skip rows that don't fit our filter (nested items with depth > 2)
     if (!pathArray || pathArray.length > 2) {
@@ -177,22 +193,6 @@ export function parseCSV(csvContent: string): ParsedCSVData {
     rowHeaders,
     colHeaders,
     values,
-    groupBy[rowKey] = {};
-
-    for (let colIdx = finalDataColIdx; colIdx < maxCols; colIdx++) {
-      const colKey = colHeaders[colIdx - finalDataColIdx] || `col_${colIdx}`;
-      if (rowIndex < rowHeaderRows.length) {
-        // This row is part of the header (no data values)
-        values[rowKey][colKey] = null;
-      } else {
-        values[rowKey][colKey] = parseValue(row[colIdx] ?? "");
-      }
-    }
-  }
-
-  return {
-    rowHeaders,
-    colHeaders,
-    values,
+    groupBy,
   };
 }
