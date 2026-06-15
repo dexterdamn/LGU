@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import {
   HeaderNode,
   flattenHeaderLeaves,
@@ -42,19 +41,6 @@ function buildRowTree(headers: HeaderNode[]): RowNode[] {
   return convert(headers);
 }
 
-function getRowLeaves(nodes: RowNode[]): RowNode[] {
-  const leaves: RowNode[] = [];
-  function walk(node: RowNode) {
-    if (!node.children || node.children.length === 0) {
-      leaves.push(node);
-    } else {
-      node.children.forEach(walk);
-    }
-  }
-  nodes.forEach(walk);
-  return leaves;
-}
-
 export function NestedDataGrid({
   rowHeaders,
   colHeaders,
@@ -65,7 +51,6 @@ export function NestedDataGrid({
   statisticsTypes = [],
   groupBy = "",
 }: NestedDataGridProps) {
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const rowTree = buildRowTree(rowHeaders);
   const rowLeaves = flattenHeaderLeaves(rowHeaders);
   const colLeaves = flattenHeaderLeaves(colHeaders);
@@ -86,80 +71,7 @@ export function NestedDataGrid({
     });
   };
 
-  const toggleRow = (id: string) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id);
-    } else {
-      newExpanded.add(id);
-    }
-    setExpandedRows(newExpanded);
-  };
-
-  function renderRowNode(node: RowNode, depth: number, index: number): React.ReactNode[] {
-    const hasChildren = node.children && node.children.length > 0;
-    const isLeaf = !hasChildren;
-    const isExpanded = expandedRows.has(node.id);
-    const rows: React.ReactNode[] = [];
-
-    // Render current node
-    rows.push(
-      <tr key={`row-${node.id}`} className={index % 2 === 0 ? "" : "bg-gray-50 dark:bg-gray-900/20"}>
-        <th 
-          className="header-cell text-left" 
-          style={{ paddingLeft: `${depth * 20}px` }}
-        >
-          <div className="flex items-center gap-2">
-            {hasChildren && (
-              <button
-                onClick={() => toggleRow(node.id)}
-                className="p-0 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
-              >
-                {isExpanded ? (
-                  <ChevronDown className="w-4 h-4" />
-                ) : (
-                  <ChevronRight className="w-4 h-4" />
-                )}
-              </button>
-            )}
-            {!hasChildren && <div className="w-4" />}
-            <span>{node.label}</span>
-          </div>
-        </th>
-        {colLeaves.map((col, ci) => {
-          const key = cellKey(node.id, col.id);
-          const val = values[key];
-          return (
-            <td key={col.id} className={ci % 2 === 0 ? "data-cell" : "data-cell-alt"}>
-              {isLeaf && (
-                readOnly ? (
-                  <span className="block px-2 py-1 text-sm text-left">{val ?? ""}</span>
-                ) : (
-                  <input
-                    type="number"
-                    className="w-full px-2 py-1 text-sm text-left bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary-500 rounded"
-                    value={val ?? ""}
-                    onChange={(e) => updateCell(node.id, col.id, e.target.value)}
-                  />
-                )
-              )}
-            </td>
-          );
-        })}
-      </tr>
-    );
-
-    // Render children if expanded
-    if (hasChildren && isExpanded) {
-      node.children!.forEach((child, childIdx) => {
-        rows.push(...renderRowNode(child, depth + 1, childIdx));
-      });
-    }
-
-    return rows;
-  }
-
-  function renderFlatRows(nodes: RowNode[]): React.ReactNode {
+  function renderFlatRows(nodes: RowNode[]): React.ReactNode[] {
     const rows: React.ReactNode[] = [];
     let index = 0;
     
@@ -202,6 +114,51 @@ export function NestedDataGrid({
     return rows;
   }
 
+  function renderRowNode(node: RowNode, depth: number, idx: number): React.ReactNode[] {
+    const isLeaf = !node.children || node.children.length === 0;
+    const rows: React.ReactNode[] = [];
+
+    rows.push(
+      <tr key={`row-${node.id}`} className={idx % 2 === 0 ? "" : "bg-gray-50 dark:bg-gray-900/20"}>
+        <th 
+          className="header-cell text-left"
+          style={{ paddingLeft: `${depth * 20}px` }}
+        >
+          <span>{node.label}</span>
+        </th>
+        {colLeaves.map((col, ci) => {
+          const key = cellKey(node.id, col.id);
+          const val = values[key];
+          return (
+            <td key={col.id} className={ci % 2 === 0 ? "data-cell" : "data-cell-alt"}>
+              {isLeaf && (
+                readOnly ? (
+                  <span className="block px-2 py-1 text-sm text-left">{val ?? ""}</span>
+                ) : (
+                  <input
+                    type="number"
+                    className="w-full px-2 py-1 text-sm text-left bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary-500 rounded"
+                    value={val ?? ""}
+                    onChange={(e) => updateCell(node.id, col.id, e.target.value)}
+                  />
+                )
+              )}
+            </td>
+          );
+        })}
+      </tr>
+    );
+
+    // Render children if they exist (for hierarchical mode)
+    if (node.children && node.children.length > 0 && !groupBy) {
+      node.children.forEach((child, childIdx) => {
+        rows.push(...renderRowNode(child, depth + 1, childIdx));
+      });
+    }
+
+    return rows;
+  }
+
   if (!rowLeaves.length || !colLeaves.length) {
     return <p className="text-sm text-muted p-4">Configure row and column headers to generate the grid.</p>;
   }
@@ -216,10 +173,15 @@ export function NestedDataGrid({
                 <th
                   rowSpan={rowDepth + (showStatistics ? statisticsTypes.length : 0)}
                   className={ri % 2 === 0 ? "header-cell" : "header-cell-alt"}
+                  style={{ minWidth: 120 }}
                 >
-                  {groupBy && <div className="text-sm font-semibold">{groupBy}</div>}
-                </th style={{ minWidth: 120 }}
-                />
+                  {groupBy && (
+                    <div className="flex items-center gap-1 text-sm font-semibold">
+                      <ChevronDown className="w-4 h-4" />
+                      {groupBy}
+                    </div>
+                  )}
+                </th>
               )}
               {row.map((cell, ci) => (
                 <th

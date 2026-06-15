@@ -43,7 +43,6 @@ export async function POST(req: NextRequest) {
         rowHeaders,
         colHeaders,
         values: parsed.values,
-        groupBy: parsed.groupBy,
       },
     });
   } catch (error) {
