@@ -55,7 +55,7 @@ export default function NewDataTablePage() {
   const [subcategorySuggestions, setSubcategorySuggestions] = useState<string[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
-  const [saveAsTemplate, setSaveAsTemplate] = useState(false);
+  
   const [csvLoading, setCsvLoading] = useState(false);
   const [importValues, setImportValues] = useState<Record<string, string | number | null>>({});
 
@@ -215,7 +215,7 @@ export default function NewDataTablePage() {
 
     try {
       // First, save as template if requested
-      if (saveAsTemplate) {
+      
         await fetch("/api/data/templates", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -233,7 +233,7 @@ export default function NewDataTablePage() {
             saveAsTemplate: true,
           }),
         });
-      }
+      
 
       // Create the table
       const res = await fetch("/api/data/tables", {
@@ -434,19 +434,6 @@ export default function NewDataTablePage() {
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Save as Template */}
-          <div className="card p-6">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={saveAsTemplate}
-                onChange={(e) => setSaveAsTemplate(e.target.checked)}
-                className="rounded"
-              />
-              <span className="text-sm font-medium">Save this layout as a template for future use</span>
-            </label>
           </div>
 
           {/* Preview */}
