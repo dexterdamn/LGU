@@ -1,6 +1,5 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
 import {
   HeaderNode,
   flattenHeaderLeaves,
@@ -19,26 +18,6 @@ interface NestedDataGridProps {
   readOnly?: boolean;
   showStatistics?: boolean;
   statisticsTypes?: StatType[];
-  groupBy?: string;
-}
-
-interface RowNode {
-  id: string;
-  label: string;
-  children?: RowNode[];
-  path: string[];
-}
-
-function buildRowTree(headers: HeaderNode[]): RowNode[] {
-  function convert(nodes: HeaderNode[], path: string[] = []): RowNode[] {
-    return nodes.map((node) => ({
-      id: node.id,
-      label: node.label,
-      path: [...path, node.label],
-      children: node.children?.length ? convert(node.children, [...path, node.label]) : undefined,
-    }));
-  }
-  return convert(headers);
 }
 
 export function NestedDataGrid({
@@ -49,13 +28,14 @@ export function NestedDataGrid({
   readOnly = false,
   showStatistics = false,
   statisticsTypes = [],
-  groupBy = "",
 }: NestedDataGridProps) {
-  const rowTree = buildRowTree(rowHeaders);
   const rowLeaves = flattenHeaderLeaves(rowHeaders);
   const colLeaves = flattenHeaderLeaves(colHeaders);
   const colMatrix = buildHeaderMatrix(colHeaders);
   const rowDepth = colMatrix.length;
+  
+  // Extract root header label if exists
+  const rootLabel = rowHeaders.length > 0 && rowHeaders[0].label ? rowHeaders[0].label : "";
 
   const stats = showStatistics && statisticsTypes.length
     ? computeStatistics(values, rowLeaves, colLeaves, statisticsTypes)
@@ -70,94 +50,6 @@ export function NestedDataGrid({
       [key]: num !== null && !Number.isNaN(num) ? num : val || null,
     });
   };
-
-  function renderFlatRows(nodes: RowNode[]): React.ReactNode[] {
-    const rows: React.ReactNode[] = [];
-    let index = 0;
-    
-    function renderFlat(node: RowNode) {
-      if (!node.children || node.children.length === 0) {
-        // Leaf node - render as row
-        rows.push(
-          <tr key={`row-${node.id}`} className={index % 2 === 0 ? "" : "bg-gray-50 dark:bg-gray-900/20"}>
-            <th className="header-cell text-left">
-              {node.label}
-            </th>
-            {colLeaves.map((col, ci) => {
-              const key = cellKey(node.id, col.id);
-              const val = values[key];
-              return (
-                <td key={col.id} className={ci % 2 === 0 ? "data-cell" : "data-cell-alt"}>
-                  {readOnly ? (
-                    <span className="block px-2 py-1 text-sm text-left">{val ?? ""}</span>
-                  ) : (
-                    <input
-                      type="number"
-                      className="w-full px-2 py-1 text-sm text-left bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary-500 rounded"
-                      value={val ?? ""}
-                      onChange={(e) => updateCell(node.id, col.id, e.target.value)}
-                    />
-                  )}
-                </td>
-              );
-            })}
-          </tr>
-        );
-        index++;
-      } else {
-        // Parent node with children - render children only
-        node.children.forEach(child => renderFlat(child));
-      }
-    }
-    
-    nodes.forEach(node => renderFlat(node));
-    return rows;
-  }
-
-  function renderRowNode(node: RowNode, depth: number, idx: number): React.ReactNode[] {
-    const isLeaf = !node.children || node.children.length === 0;
-    const rows: React.ReactNode[] = [];
-
-    rows.push(
-      <tr key={`row-${node.id}`} className={idx % 2 === 0 ? "" : "bg-gray-50 dark:bg-gray-900/20"}>
-        <th 
-          className="header-cell text-left"
-          style={{ paddingLeft: `${depth * 20}px` }}
-        >
-          <span>{node.label}</span>
-        </th>
-        {colLeaves.map((col, ci) => {
-          const key = cellKey(node.id, col.id);
-          const val = values[key];
-          return (
-            <td key={col.id} className={ci % 2 === 0 ? "data-cell" : "data-cell-alt"}>
-              {isLeaf && (
-                readOnly ? (
-                  <span className="block px-2 py-1 text-sm text-left">{val ?? ""}</span>
-                ) : (
-                  <input
-                    type="number"
-                    className="w-full px-2 py-1 text-sm text-left bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary-500 rounded"
-                    value={val ?? ""}
-                    onChange={(e) => updateCell(node.id, col.id, e.target.value)}
-                  />
-                )
-              )}
-            </td>
-          );
-        })}
-      </tr>
-    );
-
-    // Render children if they exist (for hierarchical mode)
-    if (node.children && node.children.length > 0 && !groupBy) {
-      node.children.forEach((child, childIdx) => {
-        rows.push(...renderRowNode(child, depth + 1, childIdx));
-      });
-    }
-
-    return rows;
-  }
 
   if (!rowLeaves.length || !colLeaves.length) {
     return <p className="text-sm text-muted p-4">Configure row and column headers to generate the grid.</p>;
@@ -175,12 +67,7 @@ export function NestedDataGrid({
                   className={ri % 2 === 0 ? "header-cell" : "header-cell-alt"}
                   style={{ minWidth: 120 }}
                 >
-                  {groupBy && (
-                    <div className="flex flex-col items-center justify-center gap-1">
-                      <div className="text-sm font-semibold">{groupBy}</div>
-                      <ChevronDown className="w-4 h-4" />
-                    </div>
-                  )}
+                  {rootLabel}
                 </th>
               )}
               {row.map((cell, ci) => (
@@ -197,7 +84,31 @@ export function NestedDataGrid({
           ))}
         </thead>
         <tbody>
-          {groupBy ? renderFlatRows(rowTree) : rowTree.map((node, idx) => renderRowNode(node, 0, idx))}
+          {rowLeaves.map((row, ri) => (
+            <tr key={row.id}>
+              <th className={ri % 2 === 0 ? "header-cell" : "header-cell-alt"}>
+                {row.path.slice(1).join(" › ")}
+              </th>
+              {colLeaves.map((col, ci) => {
+                const key = cellKey(row.id, col.id);
+                const val = values[key];
+                return (
+                  <td key={col.id} className={ci % 2 === 0 ? "data-cell" : "data-cell-alt"}>
+                    {readOnly ? (
+                      <span className="block px-2 py-1 text-sm text-left">{val ?? ""}</span>
+                    ) : (
+                      <input
+                        type="number"
+                        className="w-full px-2 py-1 text-sm text-left bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary-500 rounded"
+                        value={val ?? ""}
+                        onChange={(e) => updateCell(row.id, col.id, e.target.value)}
+                      />
+                    )}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
           {stats &&
             statisticsTypes.map((stat, si) => (
               <tr key={stat}>
