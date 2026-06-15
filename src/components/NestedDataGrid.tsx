@@ -20,6 +20,7 @@ interface NestedDataGridProps {
   readOnly?: boolean;
   showStatistics?: boolean;
   statisticsTypes?: StatType[];
+  groupBy?: string;
 }
 
 interface RowNode {
@@ -62,6 +63,7 @@ export function NestedDataGrid({
   readOnly = false,
   showStatistics = false,
   statisticsTypes = [],
+  groupBy = "",
 }: NestedDataGridProps) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const rowTree = buildRowTree(rowHeaders);
@@ -157,6 +159,49 @@ export function NestedDataGrid({
     return rows;
   }
 
+  function renderFlatRows(nodes: RowNode[]): React.ReactNode {
+    const rows: React.ReactNode[] = [];
+    let index = 0;
+    
+    function renderFlat(node: RowNode) {
+      if (!node.children || node.children.length === 0) {
+        // Leaf node - render as row
+        rows.push(
+          <tr key={`row-${node.id}`} className={index % 2 === 0 ? "" : "bg-gray-50 dark:bg-gray-900/20"}>
+            <th className="header-cell text-left">
+              {node.label}
+            </th>
+            {colLeaves.map((col, ci) => {
+              const key = cellKey(node.id, col.id);
+              const val = values[key];
+              return (
+                <td key={col.id} className={ci % 2 === 0 ? "data-cell" : "data-cell-alt"}>
+                  {readOnly ? (
+                    <span className="block px-2 py-1 text-sm text-left">{val ?? ""}</span>
+                  ) : (
+                    <input
+                      type="number"
+                      className="w-full px-2 py-1 text-sm text-left bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary-500 rounded"
+                      value={val ?? ""}
+                      onChange={(e) => updateCell(node.id, col.id, e.target.value)}
+                    />
+                  )}
+                </td>
+              );
+            })}
+          </tr>
+        );
+        index++;
+      } else {
+        // Parent node with children - render children only
+        node.children.forEach(child => renderFlat(child));
+      }
+    }
+    
+    nodes.forEach(node => renderFlat(node));
+    return rows;
+  }
+
   if (!rowLeaves.length || !colLeaves.length) {
     return <p className="text-sm text-muted p-4">Configure row and column headers to generate the grid.</p>;
   }
@@ -171,7 +216,9 @@ export function NestedDataGrid({
                 <th
                   rowSpan={rowDepth + (showStatistics ? statisticsTypes.length : 0)}
                   className={ri % 2 === 0 ? "header-cell" : "header-cell-alt"}
-                  style={{ minWidth: 120 }}
+                >
+                  {groupBy && <div className="text-sm font-semibold">{groupBy}</div>}
+                </th style={{ minWidth: 120 }}
                 />
               )}
               {row.map((cell, ci) => (
@@ -188,7 +235,7 @@ export function NestedDataGrid({
           ))}
         </thead>
         <tbody>
-          {rowTree.map((node, idx) => renderRowNode(node, 0, idx))}
+          {groupBy ? renderFlatRows(rowTree) : rowTree.map((node, idx) => renderRowNode(node, 0, idx))}
           {stats &&
             statisticsTypes.map((stat, si) => (
               <tr key={stat}>

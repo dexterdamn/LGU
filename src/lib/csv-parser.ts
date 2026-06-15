@@ -6,6 +6,7 @@ export interface ParsedCSVData {
   rowHeaders: string[];
   colHeaders: string[];
   values: Record<string, Record<string, any>>;
+  groupBy?: string; // First-level group name (e.g., "Camaligan")
 }
 
 function normalizeCell(cell: string): string {
@@ -129,6 +130,19 @@ export function parseCSV(csvContent: string): ParsedCSVData {
     .filter((cells) => cells.length > 0)
     .map((cells) => {
       const path = [...rowHeaderTopLabels, ...cells].filter(Boolean);
+      return path;
+    });
+
+  // Extract group and filter out nested items (items with more than 2 levels)
+  const groupBy = rowHeaders.length > 0 ? rowHeaders[0][0] : undefined;
+  const flatRowHeaders = rowHeaders
+    .filter(path => path.length <= 2) // Only keep top-level and first children
+    .map(path => {
+      // If it has 2 levels and first is same as group, return only the second
+      if (path.length === 2 && path[0] === groupBy) {
+        return path[1];
+      }
+      // Otherwise return the full path joined
       return path.join(" > ");
     });
 
@@ -147,8 +161,20 @@ export function parseCSV(csvContent: string): ParsedCSVData {
 
   for (let rowIndex = 0; rowIndex < rowDataRows.length; rowIndex++) {
     const row = rowDataRows[rowIndex];
-    const rowKey = rowHeaders[rowIndex] || `row_${rowIndex}`;
-    values[rowKey] = {};
+    const rowPathArray = rowHeaders[rowIndex];
+    
+    // Filter nested items - only process if it has <= 2 levels
+    if (!rowPathArray || rowPathArray.length > 2) {
+      continue;
+    }
+    
+    const rowKey = rowPathArray.length === 2 && rowPathArray[0] === groupBy 
+      ? rowPathArray[1] 
+      : rowPathArray.join(" > ");
+    
+    if (!values[rowKey]) {
+      values[rowKey] = {};
+    }
 
     for (let colIdx = finalDataColIdx; colIdx < maxCols; colIdx++) {
       const colKey = colHeaders[colIdx - finalDataColIdx] || `col_${colIdx}`;
@@ -162,8 +188,9 @@ export function parseCSV(csvContent: string): ParsedCSVData {
   }
 
   return {
-    rowHeaders,
+    rowHeaders: flatRowHeaders,
     colHeaders,
     values,
+    groupBy,
   };
 }
