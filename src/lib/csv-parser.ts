@@ -6,6 +6,7 @@ export interface ParsedCSVData {
   rowHeaders: string[];
   colHeaders: string[];
   values: Record<string, Record<string, any>>;
+  groupBy?: string;
 }
 
 function normalizeCell(cell: string): string {
@@ -124,11 +125,27 @@ export function parseCSV(csvContent: string): ParsedCSVData {
   const rowHeaderRows = headerRows.slice(1);
   const rowDataRows = [...rowHeaderRows, ...dataRows];
 
-  const rowHeaders = rowDataRows
+  // Parse row headers and extract path info
+  const rowHeadersRaw = rowDataRows
     .map((row) => row.slice(0, finalDataColIdx).map((cell) => normalizeCell(cell)).filter(Boolean))
     .filter((cells) => cells.length > 0)
     .map((cells) => {
       const path = [...rowHeaderTopLabels, ...cells].filter(Boolean);
+      return path;
+    });
+
+  // Extract group name (first element) and filter rows
+  const groupBy = rowHeadersRaw.length > 0 ? rowHeadersRaw[0][0] : undefined;
+  
+  // Filter and process row headers
+  const rowHeaders = rowHeadersRaw
+    .filter(path => path.length <= 2) // Only keep items with <= 2 levels (group + item)
+    .map(path => {
+      // If it has 2 levels and first is same as groupBy, return only the second part
+      if (path.length === 2 && path[0] === groupBy) {
+        return path[1];
+      }
+      // Otherwise return the full path joined
       return path.join(" > ");
     });
 
@@ -146,8 +163,19 @@ export function parseCSV(csvContent: string): ParsedCSVData {
   const values: Record<string, Record<string, any>> = {};
 
   for (let rowIndex = 0; rowIndex < rowDataRows.length; rowIndex++) {
+    const pathArray = rowHeadersRaw[rowIndex];
+    
+    // Skip rows that don't fit our filter (nested items with depth > 2)
+    if (!pathArray || pathArray.length > 2) {
+      continue;
+    }
+    
     const row = rowDataRows[rowIndex];
-    const rowKey = rowHeaders[rowIndex] || `row_${rowIndex}`;
+    // Use only the second part of the path as the key if it matches groupBy pattern
+    const rowKey = pathArray.length === 2 && pathArray[0] === groupBy 
+      ? pathArray[1] 
+      : pathArray.join(" > ");
+    
     values[rowKey] = {};
 
     for (let colIdx = finalDataColIdx; colIdx < maxCols; colIdx++) {
@@ -165,5 +193,6 @@ export function parseCSV(csvContent: string): ParsedCSVData {
     rowHeaders,
     colHeaders,
     values,
+    groupBy,
   };
 }
