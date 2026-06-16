@@ -8,7 +8,7 @@ import { NestedDataGrid } from "@/components/NestedDataGrid";
 import { ConfirmReasonModal } from "@/components/ConfirmReasonModal";
 import { formatSectorLabel } from "@/lib/categorization";
 import { getAuthorDisplayName } from "@/lib/display-name";
-import { HeaderNode, StatType, flattenHeaderLeaves, cellKey } from "@/lib/table-headers";
+import { HeaderNode, StatType, flattenHeaderLeaves, cellKey, buildHeaderMatrix } from "@/lib/table-headers";
 import { Loader2, Save, ArrowLeft } from "lucide-react";
 
 interface DataTable {
@@ -109,17 +109,27 @@ export default function DataTablePage() {
   const downloadCSV = () => {
     const rowLeaves = flattenHeaderLeaves(rowHeaders);
     const colLeaves = flattenHeaderLeaves(colHeaders);
+    const colMatrix = buildHeaderMatrix(colHeaders);
     const escapeCell = (v: any) => {
       if (v === null || v === undefined) return "";
       const s = String(v);
       return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
     };
 
-    const header = ["Row", ...colLeaves.map((c) => c.path.join(" > "))];
-    const lines = [header.map(escapeCell).join(",")];
+    const lines: string[] = [];
+    
+    // Add header matrix rows
+    for (const row of colMatrix) {
+      const headerRow = [rowHeaders.length > 0 && rowHeaders[0].label ? rowHeaders[0].label : ""];
+      for (const cell of row) {
+        headerRow.push(cell.label);
+      }
+      lines.push(headerRow.map(escapeCell).join(","));
+    }
 
+    // Add data rows
     for (const r of rowLeaves) {
-      const row = [r.path.join(" > "), ...colLeaves.map((c) => values[cellKey(r.id, c.id)] ?? "")];
+      const row = [r.path.slice(1).join(" › "), ...colLeaves.map((c) => values[cellKey(r.id, c.id)] ?? "")];
       lines.push(row.map(escapeCell).join(","));
     }
 
@@ -138,18 +148,45 @@ export default function DataTablePage() {
   const downloadPDF = () => {
     const rowLeaves = flattenHeaderLeaves(rowHeaders);
     const colLeaves = flattenHeaderLeaves(colHeaders);
+    const colMatrix = buildHeaderMatrix(colHeaders);
+    const rootLabel = rowHeaders.length > 0 && rowHeaders[0].label ? rowHeaders[0].label : "";
+
     const tableHtml = [];
-    tableHtml.push(`<table style="border-collapse:collapse;width:100%;">`);
-    tableHtml.push(`<thead><tr><th style="border:1px solid #ddd;padding:6px">Row</th>` + colLeaves.map(c => `<th style="border:1px solid #ddd;padding:6px">${c.path.join(' > ')}</th>`).join('') + `</tr></thead>`);
+    tableHtml.push(`<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:12px;">`);
+    tableHtml.push(`<thead>`);
+    
+    // Add header matrix rows
+    for (let ri = 0; ri < colMatrix.length; ri++) {
+      tableHtml.push(`<tr>`);
+      if (ri === 0) {
+        tableHtml.push(`<th style="background-color:#dbeafe;color:#1e3a8a;font-weight:bold;text-align:center;border:1px solid #000000;padding:8px;vertical-align:middle;" rowspan="${colMatrix.length}">${rootLabel}</th>`);
+      }
+      for (const cell of colMatrix[ri]) {
+        const bgColor = ri % 2 === 0 ? "#ffffff" : "#ffffff";
+        tableHtml.push(`<th style="background-color:${bgColor};color:#1e3a8a;font-weight:bold;text-align:center;border:1px solid #000000;padding:8px;" colspan="${cell.colSpan}" rowspan="${cell.rowSpan}">${cell.label}</th>`);
+      }
+      tableHtml.push(`</tr>`);
+    }
+    tableHtml.push(`</thead>`);
     tableHtml.push(`<tbody>`);
-    for (const r of rowLeaves) {
-      tableHtml.push(`<tr><th style="border:1px solid #ddd;padding:6px;text-align:left">${r.path.join(' > ')}</th>` + colLeaves.map(c => `<td style="border:1px solid #ddd;padding:6px">${values[cellKey(r.id,c.id)] ?? ''}</td>`).join('') + `</tr>`);
+    
+    // Add data rows
+    for (let rowIdx = 0; rowIdx < rowLeaves.length; rowIdx++) {
+      const r = rowLeaves[rowIdx];
+      tableHtml.push(`<tr>`);
+      tableHtml.push(`<th style="background-color:#ffffff;color:#1e3a8a;font-weight:bold;text-align:left;border:1px solid #000000;padding:8px;">${r.path.slice(1).join(" › ")}</th>`);
+      for (let colIdx = 0; colIdx < colLeaves.length; colIdx++) {
+        const c = colLeaves[colIdx];
+        const bgColor = colIdx % 2 === 0 ? "#ffffff" : "#ffffff";
+        tableHtml.push(`<td style="background-color:${bgColor};border:1px solid #000000;padding:8px;text-align:left;">${values[cellKey(r.id, c.id)] ?? ""}</td>`);
+      }
+      tableHtml.push(`</tr>`);
     }
     tableHtml.push(`</tbody></table>`);
 
     const win = window.open("", "_blank");
     if (!win) return;
-    win.document.write(`<!doctype html><html><head><title>${table?.title || 'Table'}</title><meta charset="utf-8"></head><body><h1>${table?.title || ''}</h1>${tableHtml.join('')}<script>setTimeout(()=>{window.print();},500);</script></body></html>`);
+    win.document.write(`<!doctype html><html><head><title>${table?.title || 'Table'}</title><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;margin:20px;}h1{margin-top:0;}</style></head><body><h1>${table?.title || ""}</h1>${tableHtml.join("")}<script>setTimeout(()=>{window.print();},500);</script></body></html>`);
     win.document.close();
   };
 
