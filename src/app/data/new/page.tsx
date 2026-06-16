@@ -18,7 +18,7 @@ import {
   flattenHeaderLeaves,
   buildHeaderTreeFromPaths,
 } from "@/lib/table-headers";
-import { Loader2, Upload } from "lucide-react";
+import { Loader2, Upload, X } from "lucide-react";
 import type { StatType } from "@/lib/table-headers";
 
 const STAT_OPTIONS: { value: StatType; label: string }[] = [
@@ -68,6 +68,7 @@ export default function NewDataTablePage() {
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
 
   const [csvLoading, setCsvLoading] = useState(false);
+  const [csvFileName, setCsvFileName] = useState("");
   const [importValues, setImportValues] = useState<Record<string, string | number | null>>({});
 
   const [isCsvDragging, setIsCsvDragging] = useState(false);
@@ -121,6 +122,7 @@ export default function NewDataTablePage() {
       return;
     }
 
+    setCsvFileName(file.name);
     setCsvLoading(true);
     setError("");
 
@@ -263,6 +265,12 @@ export default function NewDataTablePage() {
     await importCsvFile(file);
   };
 
+  const handleClearCsvFile = () => {
+    setCsvFileName("");
+    setImportValues({});
+    setError("");
+  };
+
   const detectedTags = useMemo(() => {
     const rowLabels = flattenHeaderLeaves(rowHeaders).flatMap((l) => l.path);
     const colLabels = flattenHeaderLeaves(colHeaders).flatMap((l) => l.path);
@@ -383,28 +391,49 @@ export default function NewDataTablePage() {
 
               <div>
                 <label className="label">Import CSV</label>
-                <label
-                  className={
-                    "input-file flex items-center justify-center px-4 py-2 border rounded-lg cursor-pointer transition " +
-                    (isCsvDragging
-                      ? "bg-blue-50 dark:bg-blue-950/30 border-blue-400 dark:border-blue-700"
-                      : "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600")
-                  }
-                  onDragEnter={handleCsvDragEnter}
-                  onDragOver={handleCsvDragOver}
-                  onDragLeave={handleCsvDragLeave}
-                  onDrop={handleCsvDrop}
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  {csvLoading ? "Importing..." : isCsvDragging ? "Drop CSV here" : "Choose CSV file"}
-                  <input
-                    type="file"
-                    accept=".csv"
-                    onChange={handleCSVImport}
-                    disabled={csvLoading}
-                    className="hidden"
-                  />
-                </label>
+                <div className="flex items-center gap-2">
+                  <label
+                    className={
+                      "input-file flex flex-1 items-center justify-center gap-2 px-4 py-2 w-full border rounded-lg cursor-pointer transition " +
+                      (isCsvDragging
+                        ? "bg-blue-50 dark:bg-blue-950/30 border-blue-400 dark:border-blue-700"
+                        : "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600")
+                    }
+                    onDragEnter={handleCsvDragEnter}
+                    onDragOver={handleCsvDragOver}
+                    onDragLeave={handleCsvDragLeave}
+                    onDrop={handleCsvDrop}
+                  >
+                    <Upload className="w-4 h-4 flex-shrink-0" />
+                    <span className="truncate text-center">
+                      {csvLoading
+                        ? "Importing..."
+                        : isCsvDragging
+                        ? "Drop CSV here"
+                        : csvFileName
+                        ? csvFileName
+                        : "Choose CSV file"}
+                    </span>
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleCSVImport}
+                      disabled={csvLoading}
+                      className="hidden"
+                    />
+                  </label>
+
+                  {csvFileName && !csvLoading && (
+                    <button
+                      type="button"
+                      onClick={handleClearCsvFile}
+                      className="inline-flex items-center justify-center rounded-full w-7 h-7 border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
+                      aria-label="Remove uploaded CSV"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                   You can also drag and drop a CSV file here.
                 </p>
