@@ -22,7 +22,7 @@ export function ConfirmReasonModal({
   confirmLabel = "Confirm",
   variant = "primary",
   requireReason = true,
-  reasonLabel = "Remarks / Reason",
+  reasonLabel = "",
   loading = false,
   onConfirm,
   onCancel,
@@ -47,19 +47,19 @@ export function ConfirmReasonModal({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
-      <div className="relative card p-6 w-full max-w-md shadow-xl">
-        <h3 className="text-lg font-semibold mb-2">{title}</h3>
-        <p className="text-sm text-muted mb-4">{message}</p>
-        <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="relative card p-4 w-80 max-w-md shadow-xl">
+        <h3 className="text-lg font-semibold mb-2 text-center">{title}</h3>
+        {/* <p className="text-sm text-muted mb-4">{message}</p> */}
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="label">{reasonLabel}</label>
-            <textarea
+            {/* <label className="label">{reasonLabel}</label> */}
+            {/* <textarea
               name="reason"
               className="input"
-              rows={3}
-              required={requireReason}
-              placeholder="Enter reason for this action..."
-            />
+              rows={3} */}
+              {/* // required={requireReason}
+              // placeholder="Enter reason for this action..." */}
+            {/* /> */}
           </div>
           <div className="flex gap-3 justify-end">
             <button type="button" onClick={onCancel} className="btn-secondary" disabled={loading}>

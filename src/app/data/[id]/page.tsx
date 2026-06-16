@@ -249,7 +249,7 @@ export default function DataTablePage() {
       <ConfirmReasonModal
         open={showSaveModal}
         title="Save Data"
-        message="Provide a reason or note for this data update."
+        message="" // Provide a reason or note for this data update.
         confirmLabel="Save"
         variant="primary"
         loading={saving}
