@@ -85,24 +85,33 @@ export default function DataTablePage() {
     loadTable();
   }, [loadTable]);
 
-  const handleSave = async (reason: string = "") => {
+  const handleSave = async () => {
     setSaving(true);
     setError("");
     try {
+      const payload = { values };
+      console.log("Saving with payload:", payload);
+      
       const res = await fetch(`/api/data/tables/${tableId}/rows`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ values, reason }),
+        body: JSON.stringify(payload),
       });
+      
+      console.log("Save response status:", res.status);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      console.log("Save response data:", data);
+      
+      if (!res.ok) throw new Error(data.error || `Error ${res.status}: ${data.message || "Unknown error"}`);
 
       setSuccess("Data saved successfully!");
       setShowSaveModal(false);
       setIsFirstSave(false);
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Save failed");
+      const errorMsg = err instanceof Error ? err.message : "Save failed";
+      console.error("Save error:", errorMsg);
+      setError(errorMsg);
     } finally {
       setSaving(false);
     }
@@ -110,44 +119,40 @@ export default function DataTablePage() {
 
   const handleSaveClick = () => {
     if (isFirstSave) {
-      handleSave("");
+      handleSave();
     } else {
       setShowSaveModal(true);
     }
   };
 
+  // Define headers early for use in download functions
+  const rowHeaders = (table?.rowHeaders as HeaderNode[]) || [];
+  const colHeaders = (table?.colHeaders as HeaderNode[]) || [];
+
   const downloadCSV = () => {
     const rowLeaves = flattenHeaderLeaves(rowHeaders);
     const colLeaves = flattenHeaderLeaves(colHeaders);
     const colMatrix = buildHeaderMatrix(colHeaders);
-
     const escapeCell = (v: any) => {
       if (v === null || v === undefined) return "";
       const s = String(v);
-      return s.includes(",") || s.includes('"') || s.includes("\n")
-        ? `"${s.replace(/"/g, '""')}"`
-        : s;
+      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
     };
 
     const lines: string[] = [];
-
+    
     // Add header matrix rows
     for (const row of colMatrix) {
-      const headerRow = [
-        rowHeaders.length > 0 && rowHeaders[0].label ? rowHeaders[0].label : "",
-      ];
-      for (const cell of row) headerRow.push(cell.label);
+      const headerRow = [rowHeaders.length > 0 && rowHeaders[0].label ? rowHeaders[0].label : ""];
+      for (const cell of row) {
+        headerRow.push(cell.label);
+      }
       lines.push(headerRow.map(escapeCell).join(","));
     }
 
     // Add data rows
     for (const r of rowLeaves) {
-      const row = [
-        r.path.join(" > "),
-        ...colLeaves.map(
-          (c) => values[cellKey(r.id, c.id)] ?? ""
-        ),
-      ];
+      const row = [r.path.slice(1).join(" › "), ...colLeaves.map((c) => values[cellKey(r.id, c.id)] ?? "")];
       lines.push(row.map(escapeCell).join(","));
     }
 
@@ -166,76 +171,45 @@ export default function DataTablePage() {
   const downloadPDF = () => {
     const rowLeaves = flattenHeaderLeaves(rowHeaders);
     const colLeaves = flattenHeaderLeaves(colHeaders);
+    const colMatrix = buildHeaderMatrix(colHeaders);
+    const rootLabel = rowHeaders.length > 0 && rowHeaders[0].label ? rowHeaders[0].label : "";
 
-    const rootLabel = rowHeaders.length > 0 ? rowHeaders[0].label : "";
-
-    const escapeHtml = (s: any) => {
-      const str = s === null || s === undefined ? "" : String(s);
-      return str
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "<")
-        .replace(/>/g, ">")
-        .replace(/\"/g, "\"")
-        .replace(/'/g, "&#039;");
-    };
-
-    const styles = `
-      body { font-family: Arial, sans-serif; margin: 16px; }
-      h1 { margin: 0 0 12px 0; font-size: 20px; }
-      table { border-collapse: collapse; width: 100%; font-size: 12px; }
-      th, td { border: 1px solid #ddd; padding: 6px; vertical-align: top; }
-      th { background: #f7f7f7; font-weight: 600; text-align: left; }
-      .cell-alt { background: #fbfbfb; }
-      @media print { .no-print { display:none; } }
-    `;
-
-    const tableHtml: string[] = [];
-    tableHtml.push(`<table><thead>`);
-
-    // Simple header: Row + all col leaf labels
-    tableHtml.push(
-      `<tr>` +
-        `<th>${escapeHtml(rootLabel || "Row")}</th>` +
-        colLeaves
-          .map((c) => `<th>${escapeHtml(c.path.join(" > "))}</th>`)
-          .join("") +
-        `</tr>`
-    );
-
-    tableHtml.push(`</thead><tbody>`);
-
-    rowLeaves.forEach((r) => {
-      const rowLabel = r.path.join(" > ");
-      tableHtml.push(
-        `<tr>` +
-          `<th>${escapeHtml(rowLabel)}</th>` +
-          colLeaves
-            .map((c, ci) => {
-              const raw = values[cellKey(r.id, c.id)] ?? "";
-              const cls = ci % 2 === 0 ? "" : "cell-alt";
-              return `<td class="${cls}">${escapeHtml(raw)}</td>`;
-            })
-            .join("") +
-          `</tr>`
-      );
-    });
-
+    const tableHtml = [];
+    tableHtml.push(`<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:12px;">`);
+    tableHtml.push(`<thead>`);
+    
+    // Add header matrix rows
+    for (let ri = 0; ri < colMatrix.length; ri++) {
+      tableHtml.push(`<tr>`);
+      if (ri === 0) {
+        tableHtml.push(`<th style="background-color:#dbeafe;color:#1e3a8a;font-weight:bold;text-align:center;border:1px solid #d1d5db;padding:8px;vertical-align:middle;" rowspan="${colMatrix.length}">${rootLabel}</th>`);
+      }
+      for (const cell of colMatrix[ri]) {
+        const bgColor = ri % 2 === 0 ? "#dbeafe" : "#bfdbfe";
+        tableHtml.push(`<th style="background-color:${bgColor};color:#1e3a8a;font-weight:bold;text-align:center;border:1px solid #d1d5db;padding:8px;" colspan="${cell.colSpan}" rowspan="${cell.rowSpan}">${cell.label}</th>`);
+      }
+      tableHtml.push(`</tr>`);
+    }
+    tableHtml.push(`</thead>`);
+    tableHtml.push(`<tbody>`);
+    
+    // Add data rows
+    for (let rowIdx = 0; rowIdx < rowLeaves.length; rowIdx++) {
+      const r = rowLeaves[rowIdx];
+      tableHtml.push(`<tr>`);
+      tableHtml.push(`<th style="background-color:#dbeafe;color:#1e3a8a;font-weight:bold;text-align:left;border:1px solid #d1d5db;padding:8px;">${r.path.slice(1).join(" › ")}</th>`);
+      for (let colIdx = 0; colIdx < colLeaves.length; colIdx++) {
+        const c = colLeaves[colIdx];
+        const bgColor = colIdx % 2 === 0 ? "#ffffff" : "#f9fafb";
+        tableHtml.push(`<td style="background-color:${bgColor};border:1px solid #e5e7eb;padding:8px;text-align:left;">${values[cellKey(r.id, c.id)] ?? ""}</td>`);
+      }
+      tableHtml.push(`</tr>`);
+    }
     tableHtml.push(`</tbody></table>`);
 
     const win = window.open("", "_blank");
     if (!win) return;
-
-    win.document.write(
-      `<!doctype html><html><head><title>${escapeHtml(
-        table?.title || "Table"
-      )}</title><meta charset="utf-8"><style>${styles}</style></head><body>`
-    );
-    win.document.write(`<h1>${escapeHtml(table?.title || "")}</h1>`);
-    win.document.write(`${tableHtml.join("")}`);
-    win.document.write(
-      `<script>setTimeout(()=>{window.print();},500);</script>`
-    );
-    win.document.write(`</body></html>`);
+    win.document.write(`<!doctype html><html><head><title>${table?.title || 'Table'}</title><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;margin:20px;}h1{margin-top:0;}</style></head><body><h1>${table?.title || ""}</h1>${tableHtml.join("")}<script>setTimeout(()=>{window.print();},500);</script></body></html>`);
     win.document.close();
   };
 
@@ -254,9 +228,6 @@ export default function DataTablePage() {
       </div>
     );
   }
-
-  const rowHeaders = (table.rowHeaders as HeaderNode[]) || [];
-  const colHeaders = (table.colHeaders as HeaderNode[]) || [];
 
   return (
     <div className="page-shell">
@@ -332,6 +303,12 @@ export default function DataTablePage() {
           </div>
         )}
 
+        {!canEdit && (
+          <div className="bg-yellow-50 dark:bg-yellow-950/30 text-yellow-700 px-4 py-3 rounded-lg text-sm mb-4">
+            ℹ️ Read-only mode. You don't have permission to edit this table.
+          </div>
+        )}
+
         {table.description && (
           <div className="card p-4 mb-4">
             <h3 className="font-semibold text-sm mb-2">Description</h3>
@@ -377,11 +354,10 @@ export default function DataTablePage() {
       <ConfirmReasonModal
         open={showSaveModal}
         title="Save Data"
-        message="" // Provide a reason or note for this data update.
+        message="Are you sure you want to save your changes?"
         confirmLabel="Save"
         variant="primary"
         loading={saving}
-        requireReason={!isFirstSave}
         onConfirm={handleSave}
         onCancel={() => setShowSaveModal(false)}
       />

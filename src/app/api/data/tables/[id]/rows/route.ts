@@ -7,7 +7,7 @@ import { getClientIp } from "@/lib/request";
 
 const bulkSchema = z.object({
   values: z.record(z.union([z.string(), z.number(), z.null()])),
-  reason: z.string().min(1),
+  reason: z.string().optional().default("Manual data update"),
 });
 
 export async function GET(
