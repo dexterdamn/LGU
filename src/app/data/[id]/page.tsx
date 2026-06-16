@@ -14,6 +14,7 @@ import {
   flattenHeaderLeaves,
   cellKey,
   buildHeaderMatrix,
+  getHeaderDepth,
 } from "@/lib/table-headers";
 import { Loader2, Save, ArrowLeft } from "lucide-react";
 
@@ -133,6 +134,10 @@ export default function DataTablePage() {
     const rowLeaves = flattenHeaderLeaves(rowHeaders);
     const colLeaves = flattenHeaderLeaves(colHeaders);
     const colMatrix = buildHeaderMatrix(colHeaders);
+    const rowDepth = getHeaderDepth(rowHeaders);
+    const rowLabelColumns = Math.max(0, rowDepth - 1);
+    const rootLabel = rowHeaders.length > 0 ? rowHeaders[0].label : "";
+
     const escapeCell = (v: any) => {
       if (v === null || v === undefined) return "";
       const s = String(v);
@@ -140,20 +145,36 @@ export default function DataTablePage() {
     };
 
     const lines: string[] = [];
-    
+
     // Add header matrix rows
-    for (const row of colMatrix) {
-      const headerRow = [rowHeaders.length > 0 && rowHeaders[0].label ? rowHeaders[0].label : ""];
+    for (let i = 0; i < colMatrix.length; i++) {
+      const row = colMatrix[i];
+      const headerRow = [] as string[];
+
+      // Add left-side row header columns for the exported CSV
+      if (i === 0) {
+        headerRow.push(rootLabel);
+      } else {
+        headerRow.push("");
+      }
+      for (let j = 0; j < rowLabelColumns; j++) {
+        headerRow.push("");
+      }
+
       for (const cell of row) {
-        headerRow.push(cell.label);
+        for (let j = 0; j < cell.colSpan; j++) {
+          headerRow.push(cell.label);
+        }
       }
       lines.push(headerRow.map(escapeCell).join(","));
     }
 
-    // Add data rows
+    // Add data rows with separate row label columns
     for (const r of rowLeaves) {
-      const row = [r.path.slice(1).join(" › "), ...colLeaves.map((c) => values[cellKey(r.id, c.id)] ?? "")];
-      lines.push(row.map(escapeCell).join(","));
+      const rowLabels = r.path.slice(1);
+      const rowCells = [...rowLabels, ...Array(Math.max(0, rowLabelColumns - rowLabels.length)).fill("")];
+      const dataCells = colLeaves.map((c) => values[cellKey(r.id, c.id)] ?? "");
+      lines.push([...rowCells, ...dataCells].map(escapeCell).join(","));
     }
 
     const csv = lines.join("\r\n");

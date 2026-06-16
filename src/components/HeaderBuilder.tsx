@@ -77,7 +77,7 @@ function HeaderNodeEditor({
           <Plus className="w-3 h-3" />
         </button>
         {depth > 0 && (
-          <button type="button" onClick={() => onAddSister(node.id)} className="btn-secondary text-xs px-2 py-1" title="Add sister header">
+          <button type="button" onClick={() => onAddSister(node.id)} className="btn-secondary text-xs px-2 py-1" title="Add sibling header">
             <Plus className="w-3 h-3" />
           </button>
         )}
