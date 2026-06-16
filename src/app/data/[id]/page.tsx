@@ -112,14 +112,19 @@ export default function DataTablePage() {
     const escapeCell = (v: any) => {
       if (v === null || v === undefined) return "";
       const s = String(v);
-      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+      return s.includes(',') || s.includes('"') || s.includes('\n')
+        ? `"${s.replace(/"/g, '""')}"`
+        : s;
     };
 
     const header = ["Row", ...colLeaves.map((c) => c.path.join(" > "))];
     const lines = [header.map(escapeCell).join(",")];
 
     for (const r of rowLeaves) {
-      const row = [r.path.join(" > "), ...colLeaves.map((c) => values[cellKey(r.id, c.id)] ?? "")];
+      const row = [
+        r.path.join(" > "),
+        ...colLeaves.map((c) => values[cellKey(r.id, c.id)] ?? ""),
+      ];
       lines.push(row.map(escapeCell).join(","));
     }
 
@@ -138,18 +143,73 @@ export default function DataTablePage() {
   const downloadPDF = () => {
     const rowLeaves = flattenHeaderLeaves(rowHeaders);
     const colLeaves = flattenHeaderLeaves(colHeaders);
-    const tableHtml = [];
-    tableHtml.push(`<table style="border-collapse:collapse;width:100%;">`);
-    tableHtml.push(`<thead><tr><th style="border:1px solid #ddd;padding:6px">Row</th>` + colLeaves.map(c => `<th style="border:1px solid #ddd;padding:6px">${c.path.join(' > ')}</th>`).join('') + `</tr></thead>`);
-    tableHtml.push(`<tbody>`);
-    for (const r of rowLeaves) {
-      tableHtml.push(`<tr><th style="border:1px solid #ddd;padding:6px;text-align:left">${r.path.join(' > ')}</th>` + colLeaves.map(c => `<td style="border:1px solid #ddd;padding:6px">${values[cellKey(r.id,c.id)] ?? ''}</td>`).join('') + `</tr>`);
-    }
+
+    // Match NestedDataGrid header/value order/format as much as possible.
+    const rootLabel = rowHeaders.length > 0 ? rowHeaders[0].label : "";
+
+    const escapeHtml = (s: any) => {
+      const str = s === null || s === undefined ? "" : String(s);
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "<")
+        .replace(/>/g, ">")
+        .replace(/\"/g, "\"")
+        .replace(/'/g, "&#039;");
+    };
+
+    const styles = `
+      body { font-family: Arial, sans-serif; margin: 16px; }
+      h1 { margin: 0 0 12px 0; font-size: 20px; }
+      table { border-collapse: collapse; width: 100%; font-size: 12px; }
+      th, td { border: 1px solid #ddd; padding: 6px; vertical-align: top; }
+      th { background: #f7f7f7; font-weight: 600; text-align: left; }
+      .cell-alt { background: #fbfbfb; }
+      @media print { .no-print { display:none; } }
+    `;
+
+    const tableHtml: string[] = [];
+    tableHtml.push(`<table><thead>`);
+
+    // Simple 2-level header like the CSV download: Row + all col leaf labels
+    tableHtml.push(
+      `<tr>` +
+        `<th>${escapeHtml(rootLabel || "Row")}</th>` +
+        colLeaves
+          .map((c) => `<th>${escapeHtml(c.path.join(" > "))}</th>`)
+          .join("") +
+        `</tr>`
+    );
+
+    tableHtml.push(`</thead><tbody>`);
+
+    rowLeaves.forEach((r) => {
+      const rowLabel = r.path.join(" > ");
+      tableHtml.push(
+        `<tr>` +
+          `<th>${escapeHtml(rowLabel)}</th>` +
+          colLeaves
+            .map((c, ci) => {
+              const raw = values[cellKey(r.id, c.id)] ?? "";
+              const cls = ci % 2 === 0 ? "" : "cell-alt";
+              return `<td class="${cls}">${escapeHtml(raw)}</td>`;
+            })
+            .join("") +
+          `</tr>`
+      );
+    });
+
     tableHtml.push(`</tbody></table>`);
 
     const win = window.open("", "_blank");
     if (!win) return;
-    win.document.write(`<!doctype html><html><head><title>${table?.title || 'Table'}</title><meta charset="utf-8"></head><body><h1>${table?.title || ''}</h1>${tableHtml.join('')}<script>setTimeout(()=>{window.print();},500);</script></body></html>`);
+
+    win.document.write(
+      `<!doctype html><html><head><title>${escapeHtml(table?.title || "Table")}</title><meta charset="utf-8"><style>${styles}</style></head><body>`
+    );
+    win.document.write(`<h1>${escapeHtml(table?.title || "")}</h1>`);
+    win.document.write(`${tableHtml.join("")}`);
+    win.document.write(`<script>setTimeout(()=>{window.print();},500);</script>`);
+    win.document.write(`</body></html>`);
     win.document.close();
   };
 
@@ -177,38 +237,74 @@ export default function DataTablePage() {
       <Navbar />
       <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex items-center gap-4 mb-6">
-          <Link href={table.deletedAt ? "/data/trash" : "/data"} className="text-muted hover:text-gray-700 dark:hover:text-gray-200">
+          <Link
+            href={table.deletedAt ? "/data/trash" : "/data"}
+            className="text-muted hover:text-gray-700 dark:hover:text-gray-200"
+          >
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div className="flex-1">
             <h1 className="text-2xl font-bold">{table.title}</h1>
             {table.deletedAt && (
-              <span className="text-xs bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 px-2 py-0.5 rounded-full">In Trash</span>
+              <span className="text-xs bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 px-2 py-0.5 rounded-full">
+                In Trash
+              </span>
             )}
             <div className="flex flex-wrap gap-2 mt-1">
               <span className="text-xs bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 px-2 py-0.5 rounded-full">
                 {formatSectorLabel(table.sector)}
               </span>
-              <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">{table.subcategory}</span>
+              <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">
+                {table.subcategory}
+              </span>
               {table.tags.map((tag) => (
-                <span key={tag} className="text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-2 py-0.5 rounded-full">{tag}</span>
+                <span
+                  key={tag}
+                  className="text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-2 py-0.5 rounded-full"
+                >
+                  {tag}
+                </span>
               ))}
-              {table.source && <span className="text-xs text-muted">Source: {table.source}</span>}
+              {table.source && (
+                <span className="text-xs text-muted">Source: {table.source}</span>
+              )}
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={downloadCSV} className="btn-secondary text-sm">Download CSV</button>
-            <button onClick={downloadPDF} className="btn-secondary text-sm">Download PDF</button>
+            <button onClick={downloadCSV} className="btn-secondary text-sm">
+              Download CSV
+            </button>
+            <button onClick={downloadPDF} className="btn-secondary text-sm">
+              Download PDF
+            </button>
             {canEdit && (
-              <button onClick={handleSaveClick} disabled={saving} className="btn-primary text-sm">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" />Save</>}
+              <button
+                onClick={handleSaveClick}
+                disabled={saving}
+                className="btn-primary text-sm"
+              >
+                {saving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-1" />Save
+                  </>
+                )}
               </button>
             )}
           </div>
         </div>
 
-        {error && <div className="bg-red-50 dark:bg-red-950/30 text-red-700 px-4 py-3 rounded-lg text-sm mb-4">{error}</div>}
-        {success && <div className="bg-green-50 dark:bg-green-950/30 text-green-700 px-4 py-3 rounded-lg text-sm mb-4">{success}</div>}
+        {error && (
+          <div className="bg-red-50 dark:bg-red-950/30 text-red-700 px-4 py-3 rounded-lg text-sm mb-4">
+            {error}
+          </div>
+        )}
+        {success && (
+          <div className="bg-green-50 dark:bg-green-950/30 text-green-700 px-4 py-3 rounded-lg text-sm mb-4">
+            {success}
+          </div>
+        )}
 
         {table.description && (
           <div className="card p-4 mb-4">
@@ -260,3 +356,4 @@ export default function DataTablePage() {
     </div>
   );
 }
+
