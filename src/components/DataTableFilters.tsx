@@ -60,7 +60,7 @@ export function DataTableFilters({
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
           className="input pl-10"
-          placeholder="Search title, description, source..."
+          placeholder="Search title..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
         />
@@ -134,12 +134,25 @@ export function useDataTableFilters(tables: DataTableListItem[]) {
 export function DataTableListRow({
   table,
   actions,
+  isSelected,
+  onSelectionChange,
 }: {
   table: DataTableListItem;
   actions?: React.ReactNode;
+  isSelected?: boolean;
+  onSelectionChange?: (selected: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+    <div className={`flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
+      {onSelectionChange && (
+        <input
+          type="checkbox"
+          checked={isSelected || false}
+          onChange={(e) => onSelectionChange(e.target.checked)}
+          className="mr-3 w-4 h-4 cursor-pointer"
+          onClick={(e) => e.stopPropagation()}
+        />
+      )}
       <div className="flex-1 min-w-0">
         <p className="font-medium truncate">{table.title}</p>
         <div className="flex flex-wrap gap-1 mt-1">
@@ -181,4 +194,39 @@ export function useFilterOptionsFromApi() {
   }, []);
 
   return options;
+}
+
+export function useTableSelection(tables: DataTableListItem[]) {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleSelection = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const selectAll = (ids: string[]) => {
+    setSelectedIds(new Set(ids));
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  const getSelectedTables = () => {
+    return tables.filter((t) => selectedIds.has(t.id));
+  };
+
+  return {
+    selectedIds,
+    toggleSelection,
+    selectAll,
+    clearSelection,
+    getSelectedTables,
+    selectedCount: selectedIds.size,
+  };
 }
