@@ -29,7 +29,7 @@ const STAT_OPTIONS: { value: StatType; label: string }[] = [
   { value: "count", label: "Count" },
 ];
 
-interface Template {
+interface SavedTable {
   id: string;
   title: string;
   sector: string;
@@ -64,8 +64,9 @@ export default function NewDataTablePage() {
   const [categorySuggestions, setCategorySuggestions] = useState<string[]>(DEFAULT_CATEGORIES);
   const [subcategorySuggestions, setSubcategorySuggestions] = useState<string[]>([]);
 
-  const [templates, setTemplates] = useState<Template[]>([]);
+  const [savedTables, setSavedTables] = useState<SavedTable[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
+  const [userId, setUserId] = useState<string>("");
 
   const [csvLoading, setCsvLoading] = useState(false);
   const [importValues, setImportValues] = useState<Record<string, string | number | null>>({});
@@ -73,10 +74,25 @@ export default function NewDataTablePage() {
   const [isCsvDragging, setIsCsvDragging] = useState(false);
 
   useEffect(() => {
+    let active = true;
+
     fetch("/api/auth/me")
       .then((r) => r.json())
       .then((d) => {
-        if (!d.user) router.push("/login");
+        if (!d.user) {
+          router.push("/login");
+          return;
+        }
+        if (!active) return;
+        setUserId(d.user.id);
+        return fetch(`/api/data/tables?authorId=${encodeURIComponent(d.user.id)}`);
+      })
+      .then((r) => (r ? r.json() : null))
+      .then((d) => {
+        if (d?.tables && active) setSavedTables(d.tables);
+      })
+      .catch(() => {
+        /* ignore */
       });
 
     fetch("/api/data/categories")
@@ -85,11 +101,9 @@ export default function NewDataTablePage() {
         if (d?.sectors) setCategorySuggestions(d.sectors);
       });
 
-    fetch("/api/data/templates?includePrivate=true")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d?.templates) setTemplates(d.templates);
-      });
+    return () => {
+      active = false;
+    };
   }, [router]);
 
   useEffect(() => {
@@ -97,21 +111,25 @@ export default function NewDataTablePage() {
     setSubcategorySuggestions([...new Set([...defaults])]);
   }, [sector]);
 
-  const handleLoadTemplate = (templateId: string) => {
-    const template = templates.find((t) => t.id === templateId);
-    if (!template) return;
-
-    setTitle("");
-    setDescription(template.description || "");
-    setSector(template.sector);
-    setSubcategory(template.subcategory);
-    setNotes(template.notes || "");
-    setRowHeaders(template.rowHeaders || []);
-    setColHeaders(template.colHeaders || []);
-    setShowStatistics(template.showStatistics || false);
-    setStatisticsTypes(template.statisticsTypes || ["total"]);
+  const handleLoadTemplate = async (templateId: string) => {
     setSelectedTemplate(templateId);
-    setImportValues({});
+    const response = await fetch(`/api/data/tables/${templateId}`);
+    if (!response.ok) return;
+
+    const data = await response.json();
+    const table = data.table;
+    if (!table) return;
+
+    setTitle(table.title);
+    setDescription(table.description || "");
+    setSector(table.sector);
+    setSubcategory(table.subcategory);
+    setNotes(table.notes || "");
+    setRowHeaders(table.rowHeaders || []);
+    setColHeaders(table.colHeaders || []);
+    setShowStatistics(table.showStatistics || false);
+    setStatisticsTypes(table.statisticsTypes || ["total"]);
+    setImportValues(table.rows?.[0]?.values || {});
   };
 
   const importCsvFile = async (file: File) => {
@@ -366,14 +384,17 @@ export default function NewDataTablePage() {
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="label">Load from Template</label>
+                <label htmlFor="templateSelect" className="label">
+                  Load from Saved Table
+                </label>
                 <select
+                  id="templateSelect"
                   value={selectedTemplate}
                   onChange={(e) => handleLoadTemplate(e.target.value)}
                   className="input"
                 >
-                  <option value="">-- Select a template --</option>
-                  {templates.map((t) => (
+                  <option value="">-- Select a saved table --</option>
+                  {savedTables.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.title}
                     </option>
