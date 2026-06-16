@@ -8,7 +8,13 @@ import { NestedDataGrid } from "@/components/NestedDataGrid";
 import { ConfirmReasonModal } from "@/components/ConfirmReasonModal";
 import { formatSectorLabel } from "@/lib/categorization";
 import { getAuthorDisplayName } from "@/lib/display-name";
-import { HeaderNode, StatType, flattenHeaderLeaves, cellKey } from "@/lib/table-headers";
+import {
+  HeaderNode,
+  StatType,
+  flattenHeaderLeaves,
+  cellKey,
+  buildHeaderMatrix,
+} from "@/lib/table-headers";
 import { Loader2, Save, ArrowLeft } from "lucide-react";
 
 interface DataTable {
@@ -34,7 +40,9 @@ export default function DataTablePage() {
   const tableId = params.id as string;
 
   const [table, setTable] = useState<DataTable | null>(null);
-  const [values, setValues] = useState<Record<string, string | number | null>>({});
+  const [values, setValues] = useState<Record<string, string | number | null>>(
+    {}
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -49,6 +57,7 @@ export default function DataTablePage() {
         fetch(`/api/data/tables/${tableId}`),
         fetch("/api/auth/me"),
       ]);
+
       const tableData = await tableRes.json();
       const meData = await meRes.json();
 
@@ -87,6 +96,7 @@ export default function DataTablePage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
+
       setSuccess("Data saved successfully!");
       setShowSaveModal(false);
       setIsFirstSave(false);
@@ -109,21 +119,34 @@ export default function DataTablePage() {
   const downloadCSV = () => {
     const rowLeaves = flattenHeaderLeaves(rowHeaders);
     const colLeaves = flattenHeaderLeaves(colHeaders);
+    const colMatrix = buildHeaderMatrix(colHeaders);
+
     const escapeCell = (v: any) => {
       if (v === null || v === undefined) return "";
       const s = String(v);
-      return s.includes(',') || s.includes('"') || s.includes('\n')
+      return s.includes(",") || s.includes('"') || s.includes("\n")
         ? `"${s.replace(/"/g, '""')}"`
         : s;
     };
 
-    const header = ["Row", ...colLeaves.map((c) => c.path.join(" > "))];
-    const lines = [header.map(escapeCell).join(",")];
+    const lines: string[] = [];
 
+    // Add header matrix rows
+    for (const row of colMatrix) {
+      const headerRow = [
+        rowHeaders.length > 0 && rowHeaders[0].label ? rowHeaders[0].label : "",
+      ];
+      for (const cell of row) headerRow.push(cell.label);
+      lines.push(headerRow.map(escapeCell).join(","));
+    }
+
+    // Add data rows
     for (const r of rowLeaves) {
       const row = [
         r.path.join(" > "),
-        ...colLeaves.map((c) => values[cellKey(r.id, c.id)] ?? ""),
+        ...colLeaves.map(
+          (c) => values[cellKey(r.id, c.id)] ?? ""
+        ),
       ];
       lines.push(row.map(escapeCell).join(","));
     }
@@ -144,7 +167,6 @@ export default function DataTablePage() {
     const rowLeaves = flattenHeaderLeaves(rowHeaders);
     const colLeaves = flattenHeaderLeaves(colHeaders);
 
-    // Match NestedDataGrid header/value order/format as much as possible.
     const rootLabel = rowHeaders.length > 0 ? rowHeaders[0].label : "";
 
     const escapeHtml = (s: any) => {
@@ -170,7 +192,7 @@ export default function DataTablePage() {
     const tableHtml: string[] = [];
     tableHtml.push(`<table><thead>`);
 
-    // Simple 2-level header like the CSV download: Row + all col leaf labels
+    // Simple header: Row + all col leaf labels
     tableHtml.push(
       `<tr>` +
         `<th>${escapeHtml(rootLabel || "Row")}</th>` +
@@ -204,11 +226,15 @@ export default function DataTablePage() {
     if (!win) return;
 
     win.document.write(
-      `<!doctype html><html><head><title>${escapeHtml(table?.title || "Table")}</title><meta charset="utf-8"><style>${styles}</style></head><body>`
+      `<!doctype html><html><head><title>${escapeHtml(
+        table?.title || "Table"
+      )}</title><meta charset="utf-8"><style>${styles}</style></head><body>`
     );
     win.document.write(`<h1>${escapeHtml(table?.title || "")}</h1>`);
     win.document.write(`${tableHtml.join("")}`);
-    win.document.write(`<script>setTimeout(()=>{window.print();},500);</script>`);
+    win.document.write(
+      `<script>setTimeout(()=>{window.print();},500);</script>`
+    );
     win.document.write(`</body></html>`);
     win.document.close();
   };
@@ -309,14 +335,18 @@ export default function DataTablePage() {
         {table.description && (
           <div className="card p-4 mb-4">
             <h3 className="font-semibold text-sm mb-2">Description</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">{table.description}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {table.description}
+            </p>
           </div>
         )}
 
         {table.notes && (
           <div className="card p-4 mb-4 border-l-4 border-yellow-400 dark:border-yellow-600">
             <h3 className="font-semibold text-sm mb-2">Notes</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{table.notes}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
+              {table.notes}
+            </p>
           </div>
         )}
 
@@ -332,7 +362,9 @@ export default function DataTablePage() {
               statisticsTypes={table.statisticsTypes as StatType[]}
             />
           ) : (
-            <p className="text-muted p-4">Legacy table format — no nested headers configured.</p>
+            <p className="text-muted p-4">
+              Legacy table format — no nested headers configured.
+            </p>
           )}
         </div>
 
