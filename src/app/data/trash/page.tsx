@@ -169,6 +169,7 @@ export default function TrashPage() {
         confirmLabel="Restore"
         variant="primary"
         loading={restoring}
+        requireReason
         onConfirm={handleRestore}
         onCancel={() => setRestoreTarget(null)}
       />
