@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { createAuditLog, purgeExpiredTrash, getTrashExpiryDate } from "@/lib/audit";
+import { purgeExpiredTrash, getTrashExpiryDate } from "@/lib/audit";
 import { getClientIp } from "@/lib/request";
 
 export async function GET(req: NextRequest) {
@@ -45,6 +46,11 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ tables: enriched });
 }
 
+const restoreSchema = z.object({
+  tableId: z.string().min(1),
+  reason: z.string().min(1),
+});
+
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) {
@@ -52,11 +58,20 @@ export async function POST(req: NextRequest) {
   }
 
   const ip = getClientIp(req);
-  const { tableId, reason } = await req.json();
 
-  if (!tableId || !reason?.trim()) {
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const parsed = restoreSchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json({ error: "Table ID and reason required" }, { status: 400 });
   }
+
+  const { tableId, reason } = parsed.data;
 
   const table = await prisma.dataTable.findUnique({ where: { id: tableId } });
   if (!table || !table.deletedAt) {
@@ -67,23 +82,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  await prisma.dataTable.update({
-    where: { id: tableId },
-    data: {
-      deletedAt: null,
-      deletedById: null,
-      deleteReason: null,
-    },
-  });
+  const trimmedReason = reason.trim();
 
-  await createAuditLog({
-    action: "TABLE_RESTORE",
-    userId: session.userId,
-    userEmail: session.email,
-    userName: session.name,
-    ipAddress: ip,
-    reason: reason.trim(),
-    metadata: { tableId, title: table.title },
+  await prisma.$transaction(async (tx) => {
+    await tx.dataTable.update({
+      where: { id: tableId },
+      data: {
+        deletedAt: null,
+        deletedById: null,
+        deleteReason: null,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        action: "TABLE_RESTORE",
+        level: "INFO",
+        userId: session.userId,
+        userEmail: session.email,
+        userName: session.name,
+        ipAddress: ip,
+        reason: trimmedReason,
+        metadata: { tableId, title: table.title },
+      },
+    });
   });
 
   return NextResponse.json({ success: true });

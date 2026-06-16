@@ -233,18 +233,24 @@ export default function DataListPage() {
     const selectedTables = tables.filter((t) => selected.has(t.id) && canDelete(t));
     const targetsToDelete = deleteTarget ? [deleteTarget] : showBulkDeleteModal ? selectedTables : [];
     if (targetsToDelete.length === 0) return;
+
+    const bulkReason = `Moved ${targetsToDelete.length} table${targetsToDelete.length !== 1 ? "s" : ""} to trash`;
+    const singleReason = (t: DataTableListItem) => `Moved "${t.title}" to trash`;
+
     setDeleting(true);
     try {
       for (const target of targetsToDelete) {
         const res = await fetch(`/api/data/tables/${target.id}`, {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reason: "" }),
+          body: JSON.stringify({ reason: deleteTarget ? singleReason(target) : bulkReason }),
         });
+
         if (res.ok) {
           setTables((current) => current.filter((t) => t.id !== target.id));
         }
       }
+
       setDeleteTarget(null);
       setShowBulkDeleteModal(false);
       setSelected(new Set());
