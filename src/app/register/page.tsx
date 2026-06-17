@@ -15,6 +15,7 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [userId, setUserId] = useState("");
   const [qrCode, setQrCode] = useState("");
+  const [accountRole, setAccountRole] = useState<"ADMIN" | "DATA_ENCODER" | null>(null);
   const [requiresApproval, setRequiresApproval] = useState(false);
 
   const [form, setForm] = useState({
@@ -58,6 +59,7 @@ export default function RegisterPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setUserId(data.userId);
+      setAccountRole(data.role || "DATA_ENCODER");
       setStep("email-otp");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
@@ -153,7 +155,11 @@ export default function RegisterPage() {
         <div className="card p-8">
           <h1 className="text-2xl font-bold text-center mb-2">Create Account</h1>
           <p className="text-gray-500 text-center text-sm mb-8">
-            Register as a data encoder for GADFS
+            {accountRole === "ADMIN"
+              ? "Set up the system admin account for GADFS"
+              : accountRole === "DATA_ENCODER"
+                ? "Register as a data encoder for GADFS"
+                : "Create your account for GADFS"}
           </p>
 
           {step !== "done" && (

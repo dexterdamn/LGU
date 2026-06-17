@@ -90,6 +90,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       userId: user.id,
+      role: user.role,
+      isFirstUser,
       message: "Verification code sent to your email",
       ...(process.env.NODE_ENV === "development" && { devOtp: code }),
     });
