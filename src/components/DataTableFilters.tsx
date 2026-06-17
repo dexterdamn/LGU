@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
+
+import { Combobox } from "@/components/Combobox";
 import { formatSectorLabel } from "@/lib/categorization";
+
 import { getAuthorDisplayName } from "@/lib/display-name";
 import { formatDate } from "@/lib/utils";
 
@@ -65,28 +68,50 @@ export function DataTableFilters({
           onChange={(e) => onSearchChange(e.target.value)}
         />
       </div>
-      <select className="input w-auto min-w-[140px]" value={authorId} onChange={(e) => onAuthorChange(e.target.value)}>
+
+      <select
+        className="input w-auto min-w-[140px]"
+        value={authorId}
+        onChange={(e) => onAuthorChange(e.target.value)}
+      >
         <option value="">All Authors</option>
         {options.authors.map((a) => (
-          <option key={a.id} value={a.id}>{a.name}</option>
+          <option key={a.id} value={a.id}>
+            {a.name}
+          </option>
         ))}
       </select>
-      <select className="input w-auto min-w-[140px]" value={sector} onChange={(e) => onSectorChange(e.target.value)}>
-        <option value="">All Categories</option>
-        {options.sectors.map((s) => (
-          <option key={s} value={s}>{formatSectorLabel(s)}</option>
-        ))}
-      </select>
-      <select className="input w-auto min-w-[140px]" value={subcategory} onChange={(e) => onSubcategoryChange(e.target.value)}>
-        <option value="">All Subcategories</option>
-        {options.subcategories.map((s) => (
-          <option key={s} value={s}>{s}</option>
-        ))}
-      </select>
-      <select className="input w-auto min-w-[120px]" value={tag} onChange={(e) => onTagChange(e.target.value)}>
+
+      <div className="w-auto min-w-[180px]">
+        <Combobox
+          label=""
+          value={sector}
+          onChange={(v) => onSectorChange(v === "" ? "" : v)}
+          suggestions={options.sectors}
+          placeholder="All Categories"
+        />
+      </div>
+
+      <div className="w-auto min-w-[180px]">
+        <Combobox
+          label=""
+          value={subcategory}
+          onChange={(v) => onSubcategoryChange(v === "" ? "" : v)}
+          suggestions={options.subcategories}
+          placeholder="All Subcategories"
+        />
+      </div>
+
+      <select
+        className="input w-auto min-w-[120px]"
+        value={tag}
+        onChange={(e) => onTagChange(e.target.value)}
+      >
         <option value="">All Tags</option>
         {options.tags.map((t) => (
-          <option key={t} value={t}>{t}</option>
+          <option key={t} value={t}>
+            {t}
+          </option>
         ))}
       </select>
     </div>
@@ -101,7 +126,11 @@ export function useDataTableFilters(tables: DataTableListItem[]) {
   const [tag, setTag] = useState("");
 
   const options: FilterOptions = {
-    authors: [...new Map(tables.map((t) => [t.author.id, { id: t.author.id, name: getAuthorDisplayName(t.author) }])).values()],
+    authors: [
+      ...new Map(
+        tables.map((t) => [t.author.id, { id: t.author.id, name: getAuthorDisplayName(t.author) }])
+      ).values(),
+    ],
     sectors: [...new Set(tables.map((t) => t.sector))].sort(),
     subcategories: [...new Set(tables.map((t) => t.subcategory))].sort(),
     tags: [...new Set(tables.flatMap((t) => t.tags))].sort(),
@@ -112,20 +141,38 @@ export function useDataTableFilters(tables: DataTableListItem[]) {
     if (sector && t.sector !== sector) return false;
     if (subcategory && t.subcategory !== subcategory) return false;
     if (tag && !t.tags.includes(tag)) return false;
+
     if (search) {
       const q = search.toLowerCase();
-      const haystack = [t.title, t.description || "", t.source || ""].join(" ").toLowerCase();
+      const haystack = [
+        t.title,
+        t.description || "",
+        t.source || "",
+        t.sector,
+        t.subcategory,
+        ...t.tags,
+        getAuthorDisplayName(t.author),
+        formatSectorLabel(t.sector),
+      ]
+        .join(" ")
+        .toLowerCase();
       if (!haystack.includes(q)) return false;
     }
+
     return true;
   });
 
   return {
-    search, setSearch,
-    authorId, setAuthorId,
-    sector, setSector,
-    subcategory, setSubcategory,
-    tag, setTag,
+    search,
+    setSearch,
+    authorId,
+    setAuthorId,
+    sector,
+    setSector,
+    subcategory,
+    setSubcategory,
+    tag,
+    setTag,
     options,
     filtered,
   };
@@ -143,7 +190,11 @@ export function DataTableListRow({
   onSelectionChange?: (selected: boolean) => void;
 }) {
   return (
-    <div className={`flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
+    <div
+      className={`flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
+        isSelected ? "bg-blue-50 dark:bg-blue-900/20" : ""
+      }`}
+    >
       {onSelectionChange && (
         <input
           type="checkbox"
@@ -153,6 +204,7 @@ export function DataTableListRow({
           onClick={(e) => e.stopPropagation()}
         />
       )}
+
       <div className="flex-1 min-w-0">
         <p className="font-medium truncate">{table.title}</p>
         <div className="flex flex-wrap gap-1 mt-1">
@@ -161,13 +213,17 @@ export function DataTableListRow({
           </span>
           <span className="text-xs text-muted">{table.subcategory}</span>
           {table.tags.slice(0, 3).map((tg) => (
-            <span key={tg} className="text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-2 py-0.5 rounded-full">{tg}</span>
+            <span
+              key={tg}
+              className="text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-2 py-0.5 rounded-full"
+            >
+              {tg}
+            </span>
           ))}
-          <span className="text-xs text-muted">
-            · {table._count.rows} rows · {getAuthorDisplayName(table.author)}
-          </span>
+          <span className="text-xs text-muted">· {table._count.rows} rows · {getAuthorDisplayName(table.author)}</span>
         </div>
       </div>
+
       <div className="flex items-center gap-3 ml-4 shrink-0">
         <span className="text-xs text-muted">{formatDate(table.updatedAt)}</span>
         {actions}
@@ -177,18 +233,24 @@ export function DataTableListRow({
 }
 
 export function useFilterOptionsFromApi() {
-  const [options, setOptions] = useState<FilterOptions>({ authors: [], sectors: [], subcategories: [], tags: [] });
+  const [options, setOptions] = useState<FilterOptions>({
+    authors: [],
+    sectors: [],
+    subcategories: [],
+    tags: [],
+  });
 
   useEffect(() => {
     fetch("/api/data/categories")
       .then((r) => r.json())
       .then((d) => {
-        if (d) setOptions({
-          authors: d.authors || [],
-          sectors: d.sectors || [],
-          subcategories: d.subcategories || [],
-          tags: d.tags || [],
-        });
+        if (d)
+          setOptions({
+            authors: d.authors || [],
+            sectors: d.sectors || [],
+            subcategories: d.subcategories || [],
+            tags: d.tags || [],
+          });
       })
       .catch(() => {});
   }, []);
@@ -230,3 +292,4 @@ export function useTableSelection(tables: DataTableListItem[]) {
     selectedCount: selectedIds.size,
   };
 }
+
