@@ -11,7 +11,7 @@ export default function HomePage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
             <div className="max-w-3xl">
               <h1 className="text-4xl sm:text-5xl font-bold mb-6">
-                GADFS Data Entry System
+                LGU CAMALIGAN
               </h1>
               <p className="text-xl text-primary-100 mb-8">
                 Gender and Development Framework Statistics — collect, categorize,
