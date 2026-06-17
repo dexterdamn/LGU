@@ -15,6 +15,17 @@ const registerSchema = z.object({
   address: z.string().min(5),
 });
 
+export async function GET() {
+  const users = await prisma.user.findMany({
+    select: { officeAgency: true },
+    where: { officeAgency: { not: "" } },
+  });
+
+  const officeAgencies = [...new Set(users.map((u) => u.officeAgency).filter(Boolean))].sort();
+
+  return NextResponse.json({ officeAgencies });
+}
+
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
   try {

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
+import { Combobox } from "@/components/Combobox";
 import { CheckCircle, Loader2 } from "lucide-react";
 
 type Step = "info" | "email-otp" | "totp-setup" | "totp-verify" | "password" | "done";
@@ -17,6 +18,7 @@ export default function RegisterPage() {
   const [qrCode, setQrCode] = useState("");
   const [accountRole, setAccountRole] = useState<"ADMIN" | "DATA_ENCODER" | null>(null);
   const [requiresApproval, setRequiresApproval] = useState(false);
+  const [officeAgencySuggestions, setOfficeAgencySuggestions] = useState<string[]>([]);
 
   const [form, setForm] = useState({
     email: "",
@@ -31,6 +33,29 @@ export default function RegisterPage() {
     password: "",
     confirmPassword: "",
   });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadOfficeAgencies = async () => {
+      try {
+        const res = await fetch("/api/auth/register");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (isMounted) {
+          setOfficeAgencySuggestions(data.officeAgencies || []);
+        }
+      } catch {
+        // Ignore fetch errors here; the field still works as a free-text input.
+      }
+    };
+
+    loadOfficeAgencies();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const updateForm = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -228,13 +253,13 @@ export default function RegisterPage() {
                 />
               </div>
               <div>
-                <label className="label">Office / Agency</label>
-                <input
-                  type="text"
-                  className="input"
-                  required
+                <Combobox
+                  label="Office / Agency"
                   value={form.officeAgency}
-                  onChange={(e) => updateForm("officeAgency", e.target.value)}
+                  onChange={(value) => updateForm("officeAgency", value)}
+                  suggestions={officeAgencySuggestions}
+                  placeholder="Type or select office / agency"
+                  required
                 />
               </div>
               <div>
