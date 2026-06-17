@@ -426,7 +426,7 @@ export default function NewDataTablePage() {
                     onDrop={handleCsvDrop}
                   >
                     <Upload className="w-4 h-4 flex-shrink-0" />
-                    <span className="truncate text-center">
+                    {/* <span className="truncate text-center">
                       {csvLoading
                         ? "Importing..."
                         : isCsvDragging
@@ -434,7 +434,27 @@ export default function NewDataTablePage() {
                         : csvFileName
                         ? csvFileName
                         : "Choose CSV file"}
-                    </span>
+                    </span> */}
+
+
+                    {csvLoading ? (
+                      <span className="truncate text-center">Importing...</span>
+                    ) : isCsvDragging ? (
+                      <span className="truncate text-center">Drop CSV here</span>
+                    ) : csvFileName ? (
+                      <input
+                        type="text"
+                        value={csvFileName}
+                        onChange={(e) => setCsvFileName(e.target.value)}
+                        disabled={csvLoading}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        className="truncate text-center input w-full"
+                      />
+                    ) : (
+                      <span className="truncate text-center">Choose CSV file</span>
+                    )}
+                    
                     <input
                       type="file"
                       accept=".csv"
